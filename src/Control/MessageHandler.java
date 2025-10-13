@@ -3,83 +3,45 @@ package Control;
 import model.Message;
 
 public class MessageHandler {
-    private final ClientHandler client;
+    private final LobbyService lobbyService;
+    private final MatchService matchService;
+    private final LeaderboardService leaderboardService;
+    private final ChatService chatService;
 
-    public MessageHandler(ClientHandler client) {
-        this.client = client;
+    public MessageHandler(LobbyService lobbyService, MatchService matchService,
+            LeaderboardService leaderboardService, ChatService chatService) {
+        this.lobbyService = lobbyService;
+        this.matchService = matchService;
+        this.leaderboardService = leaderboardService;
+        this.chatService = chatService;
     }
 
-    public void handle(Message m) {
+    /**
+     * "Tổng đài" nhận một cuộc gọi (Message) từ một người dùng (sender)
+     * và chuyển đến đúng bộ phận (Service) để xử lý.
+     * 
+     * @param m      Tin nhắn từ client.
+     * @param sender ClientHandler của người gửi tin nhắn.
+     */
+    public void handle(Message m, ClientHandler sender) {
         switch (m.type) {
-            case CHALLENGE -> handleChallenge(m);
-            case CHALLENGE_RESP -> handleChallengeResp(m);
-            case MOVE -> handleMove(m);
-            case EXIT -> handleExit();
-            case MATCH_END -> handleMatchEnd();
-            case REMATCH_RESP -> handleRematchResp(m);
-            case LEADERBOARD_REQ -> handleLeaderboardReq();
-            case GUESS_COLOR -> client.handleGuessColorInternal(m);
-            case NEXT_ROUND -> handleNextRound();
+            // Các yêu cầu liên quan đến sảnh chờ
+            case CHALLENGE -> lobbyService.handleChallenge(sender, m);
+            case CHALLENGE_RESP -> lobbyService.handleChallengeResponse(sender, m);
 
+            // Các yêu cầu trong trận đấu
+            case MOVE -> matchService.submitMove(sender, m);
+            case EXIT -> matchService.handleExit(sender);
+            case REMATCH_RESP -> matchService.handleRematchResponse(sender, m);
+            case NEXT_ROUND -> matchService.handleNextRound(sender);
+
+            // Các yêu cầu khác
+            case LEADERBOARD_REQ -> leaderboardService.sendLeaderboardTo(sender);
+            case CHAT_MESSAGE -> chatService.handleChatMessage(sender, m);
+            case IN_GAME_CHAT -> matchService.handleInGameChat(sender, m);
             default -> {
-                // unknown type
+                System.out.println("Unknown message type received: " + m.type);
             }
         }
     }
-
-    private void handleChallenge(Message m) {
-        String target = (String) m.data.get("target");
-        ClientHandler targetH = client.getServer().getLobby().findHandler(target);
-        if (targetH != null && !targetH.isInGame()) {
-            Message req = new Message(Message.Type.CHALLENGE_REQ);
-            req.from = client.getUser().getUsername();
-            req.to = target;
-            req.data = java.util.Map.of();
-            targetH.send(req);
-        } else {
-            Message err = new Message(Message.Type.ERROR);
-            err.data = java.util.Map.of("msg", "Target busy or not found");
-            client.send(err);
-        }
-    }
-
-    private void handleChallengeResp(Message m) {
-        boolean ok = Boolean.TRUE.equals(m.data.get("accept"));
-        String challenger = m.to;
-        ClientHandler ch = client.getServer().getLobby().findHandler(challenger);
-        if (ch != null) {
-            Message resp = new Message(Message.Type.CHALLENGE_RESP);
-            resp.from = client.getUser().getUsername();
-            resp.to = challenger;
-            resp.data = java.util.Map.of("accept", ok);
-            ch.send(resp);
-            if (ok)
-                client.startGameWith(ch);
-        }
-    }
-
-    private void handleMove(Message m) {
-        client.handleMoveInternal(m);
-    }
-
-    private void handleExit() {
-        client.handleExitInternal();
-    }
-
-    private void handleMatchEnd() {
-        client.handleMatchEndInternal();
-    }
-
-    private void handleRematchResp(Message m) {
-        client.handleRematchRespInternal(m);
-    }
-
-    private void handleLeaderboardReq() {
-        client.handleLeaderboardReqInternal();
-    }
-
-    private void handleNextRound() {
-        client.handleNextRoundInternal();
-    }
-
 }

@@ -12,6 +12,14 @@ public class User implements Serializable {
     public User() {
     }
 
+    public void addWin() {
+        this.totalWins++;
+    }
+
+    public void addPoints(double points) {
+        this.totalPoints += points;
+    }
+
     public User(int id, String username) {
         this.id = id;
         this.username = username;

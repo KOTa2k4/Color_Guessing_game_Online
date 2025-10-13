@@ -8,91 +8,118 @@ import view.ServerView;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.*;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class GameServer {
-    private int port;
-    private ServerSocket serverSocket;
+    private final int port;
     private final Lobby lobby;
     private final ServerView view;
-    // TẠO MỘT BỂ LUỒNG CỐ ĐỊNH
-    private final ExecutorService pool = Executors.newFixedThreadPool(20); // Ví dụ: 20 luồng
+    private final AuthenticationService authService;
+    private final MessageHandler messageHandler;
+    private final BroadcastService broadcastService;
+    private final ExecutorService clientProcessingPool = Executors.newCachedThreadPool();
 
-    public GameServer(int port) throws Exception {
+    public GameServer(int port, ServerView view, Lobby lobby, AuthenticationService authService,
+            MessageHandler messageHandler, BroadcastService broadcastService) {
         this.port = port;
-        this.view = new ServerView();
-        this.lobby = new Lobby(this, new UserDAO(), view);
+        this.view = view;
+        this.lobby = lobby;
+        this.authService = authService;
+        this.messageHandler = messageHandler;
+        this.broadcastService = broadcastService;
+    }
+
+    public void start() throws IOException {
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
+            view.showMessage("GameServer started on port " + port);
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                view.showMessage("New client connected: " + clientSocket.getInetAddress());
+                clientProcessingPool.execute(() -> handleNewClient(clientSocket));
+            }
+        }
+    }
+
+    private void handleNewClient(Socket socket) {
+        try {
+            ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+            oos.flush();
+            ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
+
+            Message loginMsg = (Message) ois.readObject();
+            if (loginMsg.type != Message.Type.LOGIN) {
+                oos.writeObject(new Message(Message.Type.ERROR));
+                socket.close();
+                return;
+            }
+
+            String username = (String) loginMsg.data.get("username");
+            String passHash = (String) loginMsg.data.get("passwordHash");
+
+            User user = authService.authenticate(username, passHash);
+
+            if (user == null || lobby.isUserOnline(username)) {
+                String reason = (user == null) ? "Wrong password" : "User already logged in";
+                Message failMsg = new Message(Message.Type.LOGIN_FAIL);
+                failMsg.data = Map.of("reason", reason);
+                oos.writeObject(failMsg);
+                socket.close();
+                return;
+            }
+
+            ClientHandler handler = new ClientHandler(socket, ois, oos, user, messageHandler, this);
+            lobby.addOnline(handler);
+            broadcastService.broadcastUserList();
+
+            handler.send(new Message(Message.Type.LOGIN_OK));
+            clientProcessingPool.execute(handler::listen);
+            view.showMessage("User logged in: " + username);
+
+        } catch (Exception e) {
+            view.showError("Client connection error: " + e.getMessage());
+            try {
+                if (socket != null && !socket.isClosed())
+                    socket.close();
+            } catch (IOException ignored) {
+            }
+        }
     }
 
     public ExecutorService getPool() {
-        return pool;
+        return clientProcessingPool;
     }
 
     public Lobby getLobby() {
         return lobby;
     }
 
-    public ServerView getView() {
-        return view;
-    }
-
-    public void start() throws IOException {
-        serverSocket = new ServerSocket(port);
-        view.showMessage("GameServer started on port " + port);
-
-        while (true) {
-            Socket s = serverSocket.accept();
-            view.showMessage("New client connected: " + s.getInetAddress());
-            pool.execute(() -> handleNewClient(s));
-        }
-    }
-
-    private void handleNewClient(Socket s) {
-        try {
-            ObjectOutputStream oos = new ObjectOutputStream(s.getOutputStream());
-            ObjectInputStream ois = new ObjectInputStream(s.getInputStream());
-
-            Message m = (Message) ois.readObject();
-            if (m.type != Message.Type.LOGIN) {
-                oos.writeObject(new Message(Message.Type.ERROR));
-                s.close();
-                return;
-            }
-
-            String username = (String) m.data.get("username");
-            String passHash = (String) m.data.get("passwordHash");
-
-            User user = lobby.getUserDAO().findByUsername(username);
-            if (user == null) {
-                user = lobby.getUserDAO().createUser(username, passHash);
-                view.showMessage("New user registered: " + username);
-            } else if (!user.getPasswordHash().equals(passHash)) {
-                Message failMsg = new Message(Message.Type.LOGIN_FAIL);
-                failMsg.data = Map.of("reason", "Wrong password");
-                oos.writeObject(failMsg);
-                s.close();
-                return;
-            }
-
-            ClientHandler handler = new ClientHandler(this, s, ois, oos, user);
-            lobby.addOnline(handler);
-
-            handler.send(new Message(Message.Type.LOGIN_OK));
-            handler.listen();
-            view.showMessage("User logged in: " + username);
-
-        } catch (Exception e) {
-            view.showError("Client connection error: " + e.getMessage());
-            try {
-                s.close();
-            } catch (IOException ignored) {
-            }
-        }
+    public BroadcastService getBroadcastService() {
+        return broadcastService;
     }
 
     public static void main(String[] args) throws Exception {
-        new GameServer(55555).start();
+        ServerView view = new ServerView();
+        UserDAO userDAO = new UserDAO();
+
+        Lobby lobby = new Lobby(view);
+
+        AuthenticationService authService = new AuthenticationService(userDAO);
+        BroadcastService broadcastService = new BroadcastService(lobby);
+        LeaderboardService leaderboardService = new LeaderboardService(userDAO);
+
+        MatchService matchService = new MatchService(userDAO, broadcastService);
+
+        LobbyService lobbyService = new LobbyService(lobby, matchService);
+
+        ChatService chatService = new ChatService(lobby);
+
+        MessageHandler messageHandler = new MessageHandler(lobbyService, matchService, leaderboardService, chatService);
+
+        GameServer server = new GameServer(55555, view, lobby, authService, messageHandler, broadcastService);
+
+        server.start();
     }
 }

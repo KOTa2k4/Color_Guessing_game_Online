@@ -33,7 +33,6 @@ public class PlayerState {
         this.client = client;
     }
 
-    // ---------------- Getters & Setters ----------------
     public ClientHandler getClient() {
         return client;
     }
@@ -70,7 +69,6 @@ public class PlayerState {
         this.matchSession = matchSession;
     }
 
-    // ---------------- Utilities ----------------
     public void reset() {
         this.move = null;
         this.rematchAccepted = false;

@@ -5,6 +5,7 @@ import model.Message;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.List;
@@ -29,6 +30,9 @@ public class GameClientUI extends JFrame {
     private JDialog currentRematchDialog; // Bạn có thể đã có dòng này
     private JLabel yourScoreLabel;
     private JLabel opponentScoreLabel;
+    private JTextArea chatArea;
+    private JTextField messageField;
+    private JButton sendChatButton;
 
     public GameClientUI(String host, int port) throws Exception {
         super("RPS Client");
@@ -63,6 +67,28 @@ public class GameClientUI extends JFrame {
         userList = new JList<>(listModel);
         add(new JScrollPane(userList), BorderLayout.CENTER);
 
+        // ✅ TẠO PANEL CHAT MỚI
+        JPanel chatPanel = new JPanel(new BorderLayout(5, 5));
+        chatPanel.setBorder(BorderFactory.createTitledBorder("Lobby Chat"));
+
+        chatArea = new JTextArea();
+        chatArea.setEditable(false);
+        chatArea.setLineWrap(true);
+        chatArea.setWrapStyleWord(true);
+        chatPanel.add(new JScrollPane(chatArea), BorderLayout.CENTER);
+
+        JPanel messageInputPanel = new JPanel(new BorderLayout(5, 5));
+        messageField = new JTextField();
+        sendChatButton = new JButton("Send");
+        messageInputPanel.add(messageField, BorderLayout.CENTER);
+        messageInputPanel.add(sendChatButton, BorderLayout.EAST);
+
+        chatPanel.add(messageInputPanel, BorderLayout.SOUTH);
+
+        JSplitPane centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JScrollPane(userList), chatPanel);
+        centerSplit.setResizeWeight(0.6); // 60% cho user list, 40% cho chat
+        add(centerSplit, BorderLayout.CENTER);
+
         // Leaderboard button dưới cùng
         leaderboardBtn = new JButton("Leaderboard");
         JPanel bottomPanel = new JPanel();
@@ -71,6 +97,8 @@ public class GameClientUI extends JFrame {
 
         // Action listeners
         loginBtn.addActionListener(e -> doLogin());
+        sendChatButton.addActionListener(e -> sendChatMessage());
+        messageField.addActionListener(e -> sendChatMessage());
         leaderboardBtn.addActionListener(e -> {
             try {
                 Message m = new Message(Message.Type.LEADERBOARD_REQ);
@@ -108,6 +136,20 @@ public class GameClientUI extends JFrame {
         });
     }
 
+    private void sendChatMessage() {
+        String message = messageField.getText().trim();
+        if (!message.isEmpty()) {
+            try {
+                Message msg = new Message(Message.Type.CHAT_MESSAGE);
+                msg.data = Map.of("message", message);
+                client.send(msg);
+                messageField.setText(""); // Xóa ô nhập sau khi gửi
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
     private void doLogin() {
         try {
             client = new GameClient(host, port);
@@ -126,6 +168,21 @@ public class GameClientUI extends JFrame {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    // Hàm helper để tìm JTextArea
+    private JTextArea findChatArea(Container container) {
+        for (Component comp : container.getComponents()) {
+            if ("inGameChatArea".equals(comp.getName())) {
+                return (JTextArea) comp;
+            }
+            if (comp instanceof Container) {
+                JTextArea found = findChatArea((Container) comp);
+                if (found != null)
+                    return found;
+            }
+        }
+        return null;
     }
 
     private void handle(Message m) {
@@ -258,6 +315,34 @@ public class GameClientUI extends JFrame {
                 break;
 
             // Trong phương thức handle(Message m)
+            case CHAT_MESSAGE: {
+                String sender = (String) m.data.get("sender");
+                String message = (String) m.data.get("message");
+                SwingUtilities.invokeLater(() -> {
+                    chatArea.append(String.format("[%s]: %s\n", sender, message));
+                    // Tự động cuộn xuống cuối
+                    chatArea.setCaretPosition(chatArea.getDocument().getLength());
+                });
+                break;
+            }
+
+            case IN_GAME_CHAT: {
+                // Vì giao diện game (JDialog) có thể phức tạp,
+                // chúng ta cần một cách để truy cập vào chat area của nó.
+                // Một cách đơn giản là tìm component theo tên.
+                if (currentGameDialog != null) {
+                    JTextArea inGameChatArea = findChatArea(currentGameDialog);
+                    if (inGameChatArea != null) {
+                        String sender = (String) m.data.get("sender");
+                        String message = (String) m.data.get("message");
+                        SwingUtilities.invokeLater(() -> {
+                            inGameChatArea.append(String.format("[%s]: %s\n", sender, message));
+                            inGameChatArea.setCaretPosition(inGameChatArea.getDocument().getLength());
+                        });
+                    }
+                }
+                break;
+            }
 
             case REMATCH_REQ:
                 // Chỉ đơn giản là bật cờ lên và không làm gì khác.
@@ -310,7 +395,7 @@ public class GameClientUI extends JFrame {
         countdownLbl.setFont(new Font("Arial", Font.BOLD, 18));
         topPanel.add(countdownLbl, BorderLayout.EAST);
         dialog.add(topPanel, BorderLayout.NORTH);
-        // ✅ THÊM SCOREPANEL VÀO DƯỚI CÙNG CỦA TOPPANEL
+
         topPanel.add(scorePanel, BorderLayout.SOUTH);
 
         // ✅ TÍNH TOÁN LAYOUT MỘT CÁCH TỰ ĐỘNG
@@ -329,6 +414,44 @@ public class GameClientUI extends JFrame {
         btnPanel.add(sendBtn);
         btnPanel.add(exitBtn);
         dialog.add(btnPanel, BorderLayout.SOUTH);
+
+        // --- TẠO GIAO DIỆN CHAT ---
+        JPanel chatPanel = new JPanel(new BorderLayout(5, 5));
+        chatPanel.setPreferredSize(new Dimension(150, 0)); // Đặt chiều rộng cho khung chat
+        chatPanel.setBorder(BorderFactory.createTitledBorder("Match Chat"));
+
+        JTextArea inGameChatArea = new JTextArea();
+        inGameChatArea.setName("inGameChatArea"); // ✅ Đặt tên để có thể tìm thấy
+        inGameChatArea.setEditable(false);
+        inGameChatArea.setLineWrap(true);
+        chatPanel.add(new JScrollPane(inGameChatArea), BorderLayout.CENTER);
+
+        JPanel messageInputPanel = new JPanel(new BorderLayout(5, 5));
+        JTextField inGameMessageField = new JTextField();
+        JButton sendInGameChatButton = new JButton("Send");
+        messageInputPanel.add(inGameMessageField, BorderLayout.CENTER);
+        messageInputPanel.add(sendInGameChatButton, BorderLayout.EAST);
+        chatPanel.add(messageInputPanel, BorderLayout.SOUTH);
+
+        // Thêm listener để gửi tin nhắn
+        ActionListener sendAction = e -> {
+            String message = inGameMessageField.getText().trim();
+            if (!message.isEmpty()) {
+                try {
+                    Message msg = new Message(Message.Type.IN_GAME_CHAT);
+                    msg.data = Map.of("message", message);
+                    client.send(msg);
+                    inGameMessageField.setText("");
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        };
+        sendInGameChatButton.addActionListener(sendAction);
+        inGameMessageField.addActionListener(sendAction);
+        dialog.add(chatPanel, BorderLayout.EAST);
+        dialog.setSize(600, 400); // Tăng chiều rộng để có chỗ cho khung chat
+        dialog.setLocationRelativeTo(this);
 
         // tạo nút
         JToggleButton[] buttons = new JToggleButton[colors.size()];

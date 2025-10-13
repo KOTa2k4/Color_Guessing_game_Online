@@ -23,7 +23,9 @@ public class Message implements Serializable {
         REMATCH_RESP,
         LEADERBOARD_REQ,
         LEADERBOARD_DATA,
-        GUESS_COLOR
+        GUESS_COLOR,
+        CHAT_MESSAGE,
+        IN_GAME_CHAT
     }
 
     public Type type;

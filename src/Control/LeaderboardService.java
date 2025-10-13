@@ -13,7 +13,6 @@ public class LeaderboardService {
         this.userDAO = userDAO;
     }
 
-    /** Gửi leaderboard cho 1 client cụ thể khi họ yêu cầu */
     public void sendLeaderboardTo(ClientHandler ch) {
         try {
             List<User> top = userDAO.getLeaderboard();

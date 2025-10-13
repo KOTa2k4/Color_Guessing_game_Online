@@ -1,45 +1,40 @@
 package Control;
 
-import dao.UserDAO;
-import model.User;
 import model.Message;
-
-import java.util.*;
+import model.User;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class BroadcastService {
-    private final GameServer server;
-    private final UserDAO userDAO;
+    private final Lobby lobby;
 
-    public BroadcastService(GameServer server, UserDAO userDAO) {
-        this.server = server;
-        this.userDAO = userDAO;
+    public BroadcastService(Lobby lobby) {
+        this.lobby = lobby;
     }
 
     public void broadcastUserList() {
-        try {
-            List<Map<String, Object>> list = new ArrayList<>();
-            // Lặp qua các ClientHandler đang online
-            for (ClientHandler handler : server.getLobby().getOnlineClients().values()) {
-                // ✅ LẤY USER TRỰC TIẾP TỪ CLIENTHANDLER, KHÔNG QUERY DB
-                User u = handler.getUser();
+        if (lobby == null)
+            return;
 
-                Map<String, Object> info = new HashMap<>();
-                info.put("username", u.getUsername());
-                info.put("points", u.getTotalPoints());
-                info.put("wins", u.getTotalWins());
-                info.put("status", handler.isInGame() ? "In match" : "Online");
-                list.add(info);
-            }
+        List<Map<String, Object>> userListInfo = new ArrayList<>();
 
-            Message m = new Message(Message.Type.USER_LIST);
-            m.data = Map.of("users", list);
+        for (ClientHandler handler : lobby.getOnlineClients().values()) {
+            User u = handler.getUser();
+            Map<String, Object> info = new HashMap<>();
+            info.put("username", u.getUsername());
+            info.put("points", u.getTotalPoints());
+            info.put("wins", u.getTotalWins());
+            info.put("status", handler.isInGame() ? "In match" : "Online");
+            userListInfo.add(info);
+        }
 
-            // Gửi cho tất cả mọi người
-            for (ClientHandler ch : server.getLobby().getOnlineClients().values()) {
-                ch.send(m);
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
+        Message m = new Message(Message.Type.USER_LIST);
+        m.data = Map.of("users", userListInfo);
+
+        for (ClientHandler ch : lobby.getOnlineClients().values()) {
+            ch.send(m);
         }
     }
 }
