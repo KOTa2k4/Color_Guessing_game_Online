@@ -1,8 +1,9 @@
-package Control;
+package server.service;
 
-import dao.UserDAO;
-import model.Message;
-import model.User;
+import server.dao.UserDAO;
+import server.network.ClientHandler;
+import shared.model.Message;
+import shared.model.User;
 
 import java.util.*;
 

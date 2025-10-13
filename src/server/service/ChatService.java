@@ -1,8 +1,10 @@
-package Control;
+package server.service;
 
 import java.util.Map;
 
-import model.Message;
+import server.Lobby;
+import server.network.ClientHandler;
+import shared.model.Message;
 
 public class ChatService {
     private final Lobby lobby;

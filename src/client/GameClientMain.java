@@ -1,6 +1,6 @@
 package client;
 
-import view.GameClientUI;
+import client.view.GameClientUI;
 
 public class GameClientMain {
     public static void main(String[] args) throws Exception {

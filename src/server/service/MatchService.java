@@ -1,8 +1,12 @@
-package Control;
+package server.service;
 
-import dao.UserDAO;
-import model.Message;
-import model.User;
+import server.dao.UserDAO;
+import server.game.MatchListener;
+import server.game.MatchSession;
+import server.game.PlayerState;
+import server.network.ClientHandler;
+import shared.model.Message;
+import shared.model.User;
 
 public class MatchService implements MatchListener {
     private final UserDAO userDAO;

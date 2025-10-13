@@ -1,7 +1,10 @@
-package Control;
+package server.network;
 
-import model.Message;
-import model.User;
+import server.GameServer;
+import server.game.MatchSession;
+import server.game.PlayerState;
+import shared.model.Message;
+import shared.model.User;
 
 import java.io.*;
 import java.net.Socket;

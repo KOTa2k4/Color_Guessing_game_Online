@@ -1,6 +1,9 @@
-package Control;
+package server.service;
 
-import model.Message;
+import server.Lobby;
+import server.network.ClientHandler;
+import shared.model.Message;
+
 import java.util.Map;
 
 public class LobbyService {

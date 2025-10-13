@@ -1,9 +1,17 @@
-package Control;
+package server;
 
-import dao.UserDAO;
-import model.Message;
-import model.User;
-import view.ServerView;
+import server.dao.UserDAO;
+import server.network.ClientHandler;
+import server.network.MessageHandler;
+import server.service.AuthenticationService;
+import server.service.BroadcastService;
+import server.service.ChatService;
+import server.service.LeaderboardService;
+import server.service.LobbyService;
+import server.service.MatchService;
+import server.view.ServerView;
+import shared.model.Message;
+import shared.model.User;
 
 import java.io.*;
 import java.net.ServerSocket;

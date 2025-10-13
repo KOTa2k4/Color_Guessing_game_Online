@@ -1,4 +1,4 @@
-package config;
+package server.config;
 
 public class DBConfig {
     public static final String DB_HOST = "127.0.0.1";

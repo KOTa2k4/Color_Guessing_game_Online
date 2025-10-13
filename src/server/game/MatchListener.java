@@ -1,6 +1,6 @@
-package Control;
+package server.game;
 
-import model.Message;
+import shared.model.Message;
 
 public interface MatchListener {
     void onSendMessage(PlayerState player, Message message);

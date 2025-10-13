@@ -1,6 +1,10 @@
-package Control;
+package server.network;
 
-import model.Message;
+import server.service.ChatService;
+import server.service.LeaderboardService;
+import server.service.LobbyService;
+import server.service.MatchService;
+import shared.model.Message;
 
 public class MessageHandler {
     private final LobbyService lobbyService;

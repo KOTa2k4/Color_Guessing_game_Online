@@ -1,12 +1,12 @@
 package client;
 
-import model.Message;
-import model.User;
-
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.function.Consumer;
+
+import shared.model.Message;
+import shared.model.User;
 
 public class GameClient {
     private Socket socket;

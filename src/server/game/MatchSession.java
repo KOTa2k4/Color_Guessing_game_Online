@@ -1,7 +1,9 @@
-package Control;
+package server.game;
 
 import java.util.*;
-import model.Message;
+
+import shared.model.Message;
+
 import java.awt.Color;
 
 public class MatchSession {

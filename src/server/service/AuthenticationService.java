@@ -1,9 +1,9 @@
-package Control;
+package server.service;
 
 import java.sql.SQLException;
 
-import dao.UserDAO;
-import model.User;
+import server.dao.UserDAO;
+import shared.model.User;
 
 public class AuthenticationService {
     private final UserDAO userDAO;

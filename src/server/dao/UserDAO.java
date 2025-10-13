@@ -1,7 +1,7 @@
-package dao;
+package server.dao;
 
-import config.DBConfig;
-import model.User;
+import server.config.DBConfig;
+import shared.model.User;
 
 import java.sql.*;
 import java.util.ArrayList;

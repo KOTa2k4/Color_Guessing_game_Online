@@ -1,7 +1,10 @@
-package Control;
+package server.service;
 
-import model.Message;
-import model.User;
+import server.Lobby;
+import server.network.ClientHandler;
+import shared.model.Message;
+import shared.model.User;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

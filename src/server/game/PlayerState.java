@@ -1,4 +1,6 @@
-package Control;
+package server.game;
+
+import server.network.ClientHandler;
 
 public class PlayerState {
     private final ClientHandler client;

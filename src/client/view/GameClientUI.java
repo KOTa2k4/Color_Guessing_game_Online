@@ -1,7 +1,7 @@
-package view;
+package client.view;
 
 import client.GameClient;
-import model.Message;
+import shared.model.Message;
 
 import javax.swing.*;
 import java.awt.*;

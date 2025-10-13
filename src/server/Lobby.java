@@ -1,8 +1,10 @@
-package Control;
+package server;
 
-import view.ServerView;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import server.network.ClientHandler;
+import server.view.ServerView;
 
 public class Lobby {
     private final ServerView view;
