@@ -6,7 +6,6 @@ import java.net.Socket;
 import java.util.function.Consumer;
 
 import shared.model.Message;
-import shared.model.User;
 
 public class GameClient {
     private Socket socket;

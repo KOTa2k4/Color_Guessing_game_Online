@@ -1,12 +1,12 @@
 package client;
 
-import client.view.GameClientUI;
+import client.view.LobbyView;
 
 public class GameClientMain {
     public static void main(String[] args) throws Exception {
         String host = "localhost";
         int port = 55555;
-        GameClientUI ui = new GameClientUI(host, port);
+        LobbyView ui = new LobbyView(host, port);
         ui.setVisible(true);
     }
 }
