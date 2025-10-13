@@ -1,8 +1,8 @@
-package client;
+package app;
 
 import client.view.LobbyView;
 
-public class GameClientMain {
+public class ClientMain {
     public static void main(String[] args) throws Exception {
         String host = "localhost";
         int port = 55555;

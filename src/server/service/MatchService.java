@@ -1,5 +1,7 @@
 package server.service;
 
+import java.sql.SQLException;
+
 import server.dao.UserDAO;
 import server.game.MatchListener;
 import server.game.MatchSession;
@@ -92,7 +94,12 @@ public class MatchService implements MatchListener {
         }
 
         // Lưu kết quả vào CSDL
-        userDAO.saveMatchResult(user1.getId(), user2.getId(), score1, score2, winnerId);
+        try {
+            userDAO.saveMatchResult(user1.getId(), user2.getId(), score1, score2, winnerId);
+        } catch (SQLException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
     }
 
     @Override
