@@ -1,5 +1,5 @@
 # Color_Guessing_game_Online
-Hệ thống của hoạt động theo mô hình Client-Server điển hình, được điều phối bởi một kiến trúc hướng dịch vụ (Service-Oriented) và sự kiện (Event-Driven) ở phía server, cùng với kiến trúc MVC (Model-View-Controller) ở phía client.
+Hệ thống hoạt động theo mô hình Client-Server , được điều phối bởi một kiến trúc hướng dịch vụ (Service-Oriented) và sự kiện (Event-Driven) ở phía server, cùng với kiến trúc MVC (Model-View-Controller) ở phía client.
 
 Luồng hoạt động phía Server 🖥️ (Bộ não)
 Đây là luồng xử lý chính khi một người chơi kết nối và tương tác với game.
