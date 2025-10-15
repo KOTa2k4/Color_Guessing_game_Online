@@ -1,16 +1,16 @@
 
 # 🎨 Color Guessing Game Online
 
-Hệ thống hoạt động theo mô hình **Client–Server**, được thiết kế dựa trên:
+The system operates under a **Client–Server architecture**, designed with:
 
-* 🧩 **Kiến trúc hướng dịch vụ (Service-Oriented)** và **hướng sự kiện (Event-Driven)** ở **Server**.
-* 🖥️ **Kiến trúc MVC (Model–View–Controller)** ở **Client**.
+* 🧩 **Service-Oriented** and **Event-Driven** architecture on the **Server side**.
+* 🖥️ **MVC (Model–View–Controller)** architecture on the **Client side**.
 
-Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đấu bạn bè**, **xem bảng xếp hạng**, và **trò chuyện toàn hệ thống** theo thời gian thực.
+This online color-guessing game allows players to **challenge others**, **view leaderboards**, and **chat globally** in real time.
 
 ---
 
-## 🚪 Giao diện Đăng nhập
+## 🚪 Login Interface
 
 <p align="center">
   <img src="./demo/login.png" alt="Login" width="500">
@@ -18,7 +18,7 @@ Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đ
 
 ---
 
-## 🏠 Sảnh chờ (Lobby)
+## 🏠 Lobby
 
 <p align="center">
   <img src="./demo/lobby.png" alt="Lobby" width="500">
@@ -26,7 +26,7 @@ Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đ
 
 ---
 
-## 🏆 Bảng xếp hạng
+## 🏆 Leaderboard
 
 <p align="center">
   <img src="./demo/leaderboard.png" alt="Leaderboard" width="500">
@@ -34,7 +34,7 @@ Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đ
 
 ---
 
-## 💬 Trò chuyện toàn hệ thống
+## 💬 Global Chat
 
 <p align="center">
   <img src="./demo/chatAll.png" alt="Chat All" width="500">
@@ -42,7 +42,7 @@ Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đ
 
 ---
 
-## ⚔️ Thách đấu người chơi khác
+## ⚔️ Player Challenge
 
 <p align="center">
   <img src="./demo/challenge.png" alt="Challenge" width="500">
@@ -50,7 +50,7 @@ Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đ
 
 ---
 
-## 🎯 Giao diện trong trận đấu
+## 🎯 In-Match Interface
 
 <p align="center">
   <img src="./demo/inMatch.png" alt="In Match" width="500">
@@ -58,7 +58,7 @@ Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đ
 
 ---
 
-## 📊 Kết quả từng vòng
+## 📊 Round Result
 
 <p align="center">
   <img src="./demo/roundResult.png" alt="Round Result" width="500">
@@ -66,7 +66,7 @@ Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đ
 
 ---
 
-## 🏁 Kết thúc trận đấu
+## 🏁 Match End
 
 <p align="center">
   <img src="./demo/matchEnd.png" alt="Match End" width="500">
@@ -74,7 +74,7 @@ Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đ
 
 ---
 
-## 🔁 Yêu cầu đấu lại (Rematch)
+## 🔁 Rematch Request
 
 <p align="center">
   <img src="./demo/rematch.png" alt="Rematch" width="500">
@@ -82,6 +82,6 @@ Trò chơi cho phép người chơi tham gia **đoán màu online**, **thách đ
 
 ---
 
-📘 *Dự án được phát triển nhằm minh họa cơ chế xử lý sự kiện, truyền thông mạng và tổ chức kiến trúc phần mềm hướng dịch vụ trong game online.*
+📘 *This project demonstrates the use of event-driven communication, network interaction, and service-oriented architecture in an online multiplayer game.*
 
----
+
