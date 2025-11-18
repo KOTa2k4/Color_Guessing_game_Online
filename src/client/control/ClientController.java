@@ -4,6 +4,7 @@ import shared.model.Message;
 import client.GameClient;
 import client.view.GameView;
 import client.view.LobbyView;
+import client.view.SpectateView;
 
 import javax.swing.*;
 import java.util.List;
@@ -16,8 +17,11 @@ import java.util.Map;
 public class ClientController {
     private LobbyView lobbyView;
     private GameView gameView; // Chỉ có một game view tại một thời điểm
+    private SpectateView spectateView;
+    private String spectatingMatchId = null;
     private final GameClient client;
     private volatile boolean rematchIsPending = false;
+    private boolean isAdmin = false;
 
     public ClientController(GameClient client) {
         this.client = client;
@@ -39,11 +43,18 @@ public class ClientController {
             switch (m.type) {
                 case LOGIN_OK:
                     JOptionPane.showMessageDialog(lobbyView, "Login OK");
+                    this.isAdmin = (boolean) m.data.getOrDefault("isAdmin", false);
+                    lobbyView.showLobbyUI(this.isAdmin);
                     break;
 
                 case LOGIN_FAIL:
                     if (lobbyView != null) {
                         lobbyView.showLoginError(m);
+                    }
+                    break;
+                case REGISTER_FAIL:
+                    if (lobbyView != null) {
+                        lobbyView.showRegisterError(m);
                     }
                     break;
 
@@ -64,6 +75,49 @@ public class ClientController {
                         lobbyView.showChallengeRequest(m);
                     }
                     break;
+                case MATCH_LIST_RESPONSE:
+                    List<Map<String, String>> matches = (List<Map<String, String>>) m.data.get("matches");
+                    lobbyView.showMatchListDialog(matches);
+                    break;
+                // TRONG: ClientController.java -> hàm handle()
+                // ...
+                // TRONG: ClientController.java -> hàm handle()
+                // ...
+                case SPECTATE_UPDATE:
+                    String matchId = (String) m.data.get("matchId");
+                    if (matchId == null)
+                        break; // Bỏ qua tin nhắn hỏng
+
+                    // Kịch bản 1: Tin nhắn này bắt đầu một phiên xem mới
+                    if (spectateView == null) {
+                        spectatingMatchId = matchId; // <-- LƯU ID TRẬN ĐANG XEM
+
+                        String p1 = (String) m.data.getOrDefault("p1Name", "Player 1");
+                        String p2 = (String) m.data.getOrDefault("opponent", "Player 2");
+
+                        // Tạo View mới và truyền vào 'client' + 'callback'
+                        spectateView = new SpectateView(lobbyView, client, p1, p2, () -> {
+                            // Đây là code chạy khi Admin nhấn 'X'
+                            try {
+                                client.send(new Message(Message.Type.STOP_SPECTATING_REQ));
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                            spectateView = null; // Xóa tham chiếu
+                            spectatingMatchId = null; // Quên trận này đi
+                        });
+                        spectateView.setVisible(true);
+                    }
+
+                    // Kịch bản 2: Cập nhật cho trận đang xem
+                    // (Chỉ cập nhật nếu ID khớp, tránh lỗi 2 trận)
+                    if (spectatingMatchId != null && spectatingMatchId.equals(matchId)) {
+                        spectateView.updateState(m);
+                    }
+                    // (Nếu ID không khớp, đây là tin nhắn rác từ trận cũ, bỏ qua)
+                    break;
+                // ...
+                // ...
 
                 case START_GAME:
                     // Đóng game cũ (nếu có) trước khi bắt đầu game mới
@@ -122,6 +176,12 @@ public class ClientController {
                         gameView.dispose();
                         gameView = null;
                     }
+                    // Đóng SpectateView (nếu đang xem)
+                    if (spectateView != null) { // <-- THÊM KHỐI NÀY
+                        spectateView.dispose();
+                        spectateView = null;
+                        spectatingMatchId = null;
+                    }
                     JOptionPane.showMessageDialog(lobbyView, "Match ended: " + m.data.get("reason"));
 
                     if (rematchIsPending) {
@@ -148,6 +208,13 @@ public class ClientController {
                         lobbyView.showLeaderboard(m);
                     }
                     break;
+                case MATCH_HISTORY_RESPONSE:
+                    if (lobbyView != null) {
+                        List<shared.model.MatchRecord> history = (List<shared.model.MatchRecord>) m.data.get("history");
+
+                        lobbyView.showMatchHistoryDialog(history);
+                    }
+                    break;
 
                 default:
                     System.out.println("Unhandled message type received by Controller: " + m.type);
@@ -155,4 +222,5 @@ public class ClientController {
             }
         });
     }
+
 }

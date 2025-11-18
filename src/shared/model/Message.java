@@ -25,13 +25,23 @@ public class Message implements Serializable {
         LEADERBOARD_DATA,
         GUESS_COLOR,
         CHAT_MESSAGE,
-        IN_GAME_CHAT
+        IN_GAME_CHAT,
+        GET_MATCH_HISTORY,
+        MATCH_HISTORY_RESPONSE,
+        REGISTER_REQ,
+        REGISTER_FAIL,
+        LOGOUT,
+        GET_MATCH_LIST,
+        MATCH_LIST_RESPONSE,
+        SPECTATE_REQ,
+        SPECTATE_UPDATE,
+        STOP_SPECTATING_REQ
     }
 
     public Type type;
-    public String from; // username
-    public String to; // username
-    public Map<String, Object> data; // payload
+    public String from;
+    public String to;
+    public Map<String, Object> data;
 
     public Message() {
     }

@@ -1,6 +1,7 @@
 package server.network;
 
-import server.GameServer;
+import server.Lobby;
+import server.service.BroadcastService;
 import server.game.MatchSession;
 import server.game.PlayerState;
 import shared.model.Message;
@@ -9,32 +10,40 @@ import shared.model.User;
 import java.io.*;
 import java.net.Socket;
 
-// quản lý kết nối và luồng I/O.
 public class ClientHandler {
     private final Socket socket;
     private final ObjectInputStream in;
     private final ObjectOutputStream out;
     private final User user;
     private final MessageHandler messageHandler;
-    private final GameServer server;
 
-    private MatchSession match;
+    private final Lobby lobby;
+    private final BroadcastService broadcastService;
+
+    private MatchSession playingMatch;
+    private MatchSession spectatingMatch;
     private volatile boolean inGame = false;
 
     public ClientHandler(Socket socket, ObjectInputStream in, ObjectOutputStream out, User user,
-            MessageHandler messageHandler, GameServer server) {
+            MessageHandler messageHandler, Lobby lobby, BroadcastService broadcastService) {
         this.socket = socket;
         this.in = in;
         this.out = out;
         this.user = user;
         this.messageHandler = messageHandler;
-        this.server = server;
+        this.lobby = lobby;
+        this.broadcastService = broadcastService;
     }
 
     public void listen() {
         try {
             while (!socket.isClosed()) {
                 Message m = (Message) in.readObject();
+                if (m.type == Message.Type.LOGOUT) {
+                    System.out.println("User " + user.getUsername() + " requested logout.");
+                    cleanup();
+                    break;
+                }
                 messageHandler.handle(m, this);
             }
         } catch (IOException | ClassNotFoundException e) {
@@ -55,7 +64,6 @@ public class ClientHandler {
     }
 
     private void cleanup() {
-        // Đóng socket
         try {
             if (socket != null && !socket.isClosed()) {
                 socket.close();
@@ -63,14 +71,19 @@ public class ClientHandler {
         } catch (IOException ignored) {
         }
 
-        // Nếu người chơi đang trong trận, thông báo cho trận đấu biết họ đã thoát
-        if (this.match != null) {
-            match.handleExit(getPlayerState());
+        // Nếu người chơi đang TRONG TRẬN, báo cho trận đấu
+        if (this.playingMatch != null) {
+            playingMatch.handleExit(getPlayerState());
+        }
+
+        // Nếu người chơi đang XEM TRẬN, báo cho trận đấu
+        if (this.spectatingMatch != null) {
+            spectatingMatch.removeSpectator(this);
         }
 
         // Tự xóa mình khỏi sảnh chờ và kích hoạt broadcast
-        server.getLobby().removeOnline(this.user.getUsername());
-        server.getBroadcastService().broadcastUserList();
+        lobby.removeOnline(this.user.getUsername());
+        broadcastService.broadcastUserList();
 
         System.out.println("[CLEANUP] Cleaned up client: " + this.user.getUsername());
     }
@@ -80,11 +93,25 @@ public class ClientHandler {
     }
 
     public MatchSession getMatch() {
-        return match;
+        return playingMatch;
     }
 
     public void setMatch(MatchSession match) {
-        this.match = match;
+        this.playingMatch = match;
+        if (match != null) {
+            this.spectatingMatch = null;
+        }
+    }
+
+    public MatchSession getSpectatingMatch() {
+        return spectatingMatch;
+    }
+
+    public void setSpectatingMatch(MatchSession match) {
+        this.spectatingMatch = match;
+        if (match != null) {
+            this.playingMatch = null;
+        }
     }
 
     public boolean isInGame() {
@@ -96,12 +123,12 @@ public class ClientHandler {
     }
 
     public PlayerState getPlayerState() {
-        if (match == null)
+        if (playingMatch == null)
             return null;
-        if (match.getPlayer1().getClient() == this)
-            return match.getPlayer1();
-        if (match.getPlayer2().getClient() == this)
-            return match.getPlayer2();
+        if (playingMatch.getPlayer1().getClient() == this)
+            return playingMatch.getPlayer1();
+        if (playingMatch.getPlayer2().getClient() == this)
+            return playingMatch.getPlayer2();
         return null;
     }
 }

@@ -8,4 +8,6 @@ public interface MatchListener {
     void onMatchDataSave(PlayerState p1, PlayerState p2, double score1, double score2, Integer winnerId);
 
     void onPlayerStatusUpdate();
+
+    void onMatchFinished(MatchSession session);
 }

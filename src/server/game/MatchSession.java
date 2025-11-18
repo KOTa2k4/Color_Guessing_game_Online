@@ -1,28 +1,35 @@
 package server.game;
 
 import java.util.*;
-
+import java.util.concurrent.CopyOnWriteArrayList;
+import server.network.ClientHandler;
 import shared.model.Message;
-
 import java.awt.Color;
 
 public class MatchSession {
     private final PlayerState player1;
     private final PlayerState player2;
     private final MatchListener listener;
+    private final String matchId;
+    private final List<ClientHandler> spectators = new CopyOnWriteArrayList<>();
 
     private Timer roundTimer;
     private int currentRound = 0;
-    private static final int MAX_ROUNDS = 5;
-    private static final Random random = new Random();
+    public static final int MAX_ROUNDS = 5;
     private Color correctColorObject;
 
     public MatchSession(PlayerState p1, PlayerState p2, MatchListener listener) {
         this.player1 = p1;
         this.player2 = p2;
         this.listener = listener;
+        this.matchId = java.util.UUID.randomUUID().toString();
         player1.setMatchSession(this);
         player2.setMatchSession(this);
+    }
+
+    // --- CÁC HÀM GETTER CÔNG KHAI (CHO FACTORY) ---
+    public String getMatchId() {
+        return this.matchId;
     }
 
     public PlayerState getPlayer1() {
@@ -32,6 +39,12 @@ public class MatchSession {
     public PlayerState getPlayer2() {
         return player2;
     }
+
+    public int getCurrentRound() {
+        return currentRound;
+    }
+
+    // --- LUỒNG GAME CHÍNH (ĐÃ TỐI ƯU) ---
 
     public void start() {
         player1.getClient().setInGame(true);
@@ -43,6 +56,160 @@ public class MatchSession {
         currentRound = 0;
         startNextRound();
     }
+
+    private void startNextRound() {
+        if (currentRound >= MAX_ROUNDS) {
+            processFinalMatchResult();
+            endMatch("all_rounds_completed");
+            return;
+        }
+        currentRound++;
+
+        int numColors = 6 + (currentRound - 1);
+
+        // 1. Gọi Utils để lấy màu
+        Map<String, Object> colorData = GameUtils.generateSimilarColorPalette(currentRound, numColors);
+        this.correctColorObject = (Color) colorData.get("correctColor");
+        List<Color> paletteForThisRound = (List<Color>) colorData.get("palette");
+
+        // 2. Gọi Factory để đóng gói tin nhắn
+        Map<String, Object> data = GamePacketFactory.createStartRoundPacket(this, paletteForThisRound,
+                correctColorObject);
+
+        // 3. Gửi cho người chơi
+        sendColorList(player1, data);
+        sendColorList(player2, data);
+
+        // 4. Gửi cho khán giả
+        Message spectateMsg = new Message(Message.Type.SPECTATE_UPDATE);
+        spectateMsg.data = data; // Dùng 'data' chung (đã chứa điểm P1, P2)
+        broadcastToSpectators(spectateMsg);
+
+        scheduleRoundTimeout();
+    }
+
+    private void evaluateRound() {
+        if (roundTimer != null) {
+            roundTimer.cancel();
+            roundTimer = null;
+        }
+
+        String correctColorString = String.format("%d,%d,%d",
+                correctColorObject.getRed(), correctColorObject.getGreen(), correctColorObject.getBlue());
+
+        double score1 = correctColorString.equals(player1.getMove()) ? 1 : 0;
+        double score2 = correctColorString.equals(player2.getMove()) ? 1 : 0;
+
+        player1.addToMatchScore(score1);
+        player2.addToMatchScore(score2);
+
+        // 1. Gọi Factory để đóng gói tin nhắn
+        Map<String, Object> spectateData = GamePacketFactory.createRoundResultPacket(this, correctColorString, score1,
+                score2);
+
+        // 2. Gửi cho người chơi
+        sendRoundResult(player1, score1, spectateData);
+        sendRoundResult(player2, score2, spectateData);
+
+        // 3. Gửi cho khán giả
+        Message spectateMsg = new Message(Message.Type.SPECTATE_UPDATE);
+        spectateMsg.data = spectateData; // Dùng 'spectateData' (đã chứa move P1, P2)
+        broadcastToSpectators(spectateMsg);
+
+        player1.setMove(null);
+        player2.setMove(null);
+    }
+
+    private void processFinalMatchResult() {
+        double tempScore1 = player1.getMatchScore();
+        double tempScore2 = player2.getMatchScore();
+        double finalPoints1, finalPoints2;
+        Integer winnerId = null;
+
+        if (tempScore1 > tempScore2) {
+            finalPoints1 = 1.0;
+            finalPoints2 = 0.0;
+            winnerId = player1.getClient().getUser().getId();
+        } else if (tempScore2 > tempScore1) {
+            finalPoints1 = 0.0;
+            finalPoints2 = 1.0;
+            winnerId = player2.getClient().getUser().getId();
+        } else {
+            finalPoints1 = 0.5;
+            finalPoints2 = 0.5;
+        }
+        listener.onMatchDataSave(player1, player2, finalPoints1, finalPoints2, winnerId);
+    }
+
+    // --- HÀM GỬI TIN (ĐÃ TỐI ƯU) ---
+
+    /**
+     * Gửi packet BẮT ĐẦU VÒNG (đã được tùy chỉnh) cho 1 người chơi.
+     */
+    private void sendColorList(PlayerState player, Map<String, Object> data) {
+        Message msg = new Message(Message.Type.START_GAME);
+
+        // Tạo bản sao và tùy chỉnh cho người chơi này
+        Map<String, Object> dataForPlayer = new HashMap<>(data);
+        dataForPlayer.put("opponent", player.getOpponent().getClient().getUser().getUsername());
+        dataForPlayer.put("yourScore", player.getMatchScore());
+        dataForPlayer.put("opponentScore", player.getOpponent().getMatchScore());
+
+        msg.data = dataForPlayer;
+        listener.onSendMessage(player, msg);
+    }
+
+    /**
+     * Gửi packet KẾT THÚC VÒNG (đã được tùy chỉnh) cho 1 người chơi.
+     */
+    private void sendRoundResult(PlayerState player, double roundScore, Map<String, Object> data) {
+        Message msg = new Message(Message.Type.ROUND_RESULT);
+
+        // Tạo bản sao và tùy chỉnh cho người chơi này
+        Map<String, Object> dataForPlayer = new HashMap<>(data);
+        dataForPlayer.put("yourMove", player.getMove());
+        dataForPlayer.put("oppMove", player.getOpponent().getMove());
+        dataForPlayer.put("score", roundScore);
+        dataForPlayer.put("yourTotalScore", player.getMatchScore()); // Client dùng key này
+        dataForPlayer.put("opponentTotalScore", player.getOpponent().getMatchScore()); // Client dùng key này
+
+        msg.data = dataForPlayer;
+        listener.onSendMessage(player, msg);
+    }
+
+    // --- HÀM CHO KHÁN GIẢ (ĐÃ TỐI ƯU) ---
+
+    public void addSpectator(ClientHandler handler) {
+        spectators.add(handler);
+        handler.setSpectatingMatch(this);
+
+        // 1. Tạo packet BẮT ĐẦU VÒNG (dùng trạng thái hiện tại)
+        // (Lưu ý: chúng ta không có 'palette' ở đây, nên chỉ gửi màu đúng)
+        Map<String, Object> colorData = new HashMap<>();
+        colorData.put("correctColor", correctColorObject);
+        colorData.put("palette", new ArrayList<>()); // Gửi list rỗng
+
+        Map<String, Object> data = GamePacketFactory.createStartRoundPacket(this,
+                (List<Color>) colorData.get("palette"), correctColorObject);
+
+        // 2. Gửi cho chỉ spectator mới này
+        Message msg = new Message(Message.Type.SPECTATE_UPDATE);
+        msg.data = data;
+        listener.onSendMessage(new PlayerState(handler), msg);
+    }
+
+    public void removeSpectator(ClientHandler handler) {
+        spectators.remove(handler);
+        System.out.println("Spectator " + handler.getUser().getUsername() + " removed from match " + matchId);
+    }
+
+    private void broadcastToSpectators(Message message) {
+        for (ClientHandler spectator : spectators) {
+            listener.onSendMessage(new PlayerState(spectator), message);
+        }
+    }
+
+    // --- CÁC HÀM XỬ LÝ SỰ KIỆN (KHÔNG THAY ĐỔI) ---
 
     public synchronized void submitMove(PlayerState player, String colorGuess) {
         player.setMove(colorGuess);
@@ -83,152 +250,18 @@ public class MatchSession {
         cleanupAndEndSession();
     }
 
-    private void startNextRound() {
-        if (currentRound >= MAX_ROUNDS) {
-            endMatch("all_rounds_completed");
-            return;
-        }
-        currentRound++;
-
-        int numColors = 6 + (currentRound - 1);
-        Map<String, Object> colorData = generateSimilarColorPalette(currentRound, numColors);
-        this.correctColorObject = (Color) colorData.get("correctColor");
-        List<Color> paletteForThisRound = (List<Color>) colorData.get("palette");
-
-        sendColorList(player1, paletteForThisRound);
-        sendColorList(player2, paletteForThisRound);
-        scheduleRoundTimeout();
-    }
-
-    private Map<String, Object> generateSimilarColorPalette(int roundNumber, int numColors) {
-        // Thiết lập độ khó
-        int delta;
-        if (roundNumber <= 1)
-            delta = 70;
-        else if (roundNumber <= 3)
-            delta = 40;
-        else
-            delta = 20;
-
-        int r_base = random.nextInt(256);
-        int g_base = random.nextInt(256);
-        int b_base = random.nextInt(256);
-        Color correctColor = new Color(r_base, g_base, b_base);
-        List<Color> palette = new ArrayList<>();
-        palette.add(correctColor);
-
-        for (int i = 0; i < numColors - 1; i++) {
-            int r_offset = random.nextInt(delta * 2 + 1) - delta;
-            int g_offset = random.nextInt(delta * 2 + 1) - delta;
-            int b_offset = random.nextInt(delta * 2 + 1) - delta;
-            int new_r = Math.max(0, Math.min(255, r_base + r_offset));
-            int new_g = Math.max(0, Math.min(255, g_base + g_offset));
-            int new_b = Math.max(0, Math.min(255, b_base + b_offset));
-            palette.add(new Color(new_r, new_g, new_b));
-        }
-        Collections.shuffle(palette);
-        Map<String, Object> result = new HashMap<>();
-        result.put("correctColor", correctColor);
-        result.put("palette", palette);
-        return result;
-    }
-
-    private void sendColorList(PlayerState player, List<Color> palette) {
-        Message msg = new Message(Message.Type.START_GAME);
-        Map<String, Object> data = new HashMap<>();
-        List<Map<String, Integer>> colorsAsRgb = new ArrayList<>();
-        for (Color c : palette) {
-            colorsAsRgb.add(Map.of("r", c.getRed(), "g", c.getGreen(), "b", c.getBlue()));
-        }
-        data.put("colors", colorsAsRgb);
-        data.put("correctColor", Map.of("r", correctColorObject.getRed(), "g", correctColorObject.getGreen(), "b",
-                correctColorObject.getBlue()));
-        data.put("opponent", player.getOpponent().getClient().getUser().getUsername());
-        data.put("yourScore", player.getMatchScore());
-        data.put("opponentScore", player.getOpponent().getMatchScore());
-        data.put("round", currentRound);
-        data.put("maxRounds", MAX_ROUNDS);
-        msg.data = data;
-
-        listener.onSendMessage(player, msg);
-    }
-
-    private void scheduleRoundTimeout() {
-        roundTimer = new Timer();
-        roundTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                evaluateRound();
-            }
-        }, 15000);
-    }
-
-    private void evaluateRound() {
-        if (roundTimer != null) {
-            roundTimer.cancel();
-            roundTimer = null;
-        }
-
-        String correctColorString = String.format("%d,%d,%d",
-                correctColorObject.getRed(), correctColorObject.getGreen(), correctColorObject.getBlue());
-
-        double score1 = correctColorString.equals(player1.getMove()) ? 1 : 0;
-        double score2 = correctColorString.equals(player2.getMove()) ? 1 : 0;
-
-        player1.addToMatchScore(score1);
-        player2.addToMatchScore(score2);
-
-        Integer winnerId = null;
-        if (score1 > score2)
-            winnerId = player1.getClient().getUser().getId();
-        else if (score2 > score1)
-            winnerId = player2.getClient().getUser().getId();
-
-        listener.onMatchDataSave(player1, player2, score1, score2, winnerId);
-
-        sendRoundResult(player1, score1, correctColorString);
-        sendRoundResult(player2, score2, correctColorString);
-
-        player1.setMove(null);
-        player2.setMove(null);
-    }
-
-    private void sendRoundResult(PlayerState player, double roundScore, String correctColorString) {
-        Message msg = new Message(Message.Type.ROUND_RESULT);
-        Map<String, Object> data = new HashMap<>();
-        data.put("yourMove", player.getMove());
-        data.put("oppMove", player.getOpponent().getMove());
-        data.put("correctColor", correctColorString);
-        data.put("score", roundScore);
-        data.put("yourTotalScore", player.getMatchScore());
-        data.put("opponentTotalScore", player.getOpponent().getMatchScore());
-        msg.data = data;
-
-        listener.onSendMessage(player, msg);
-    }
-
-    /**
-     * Xử lý tin nhắn chat trong trận và chỉ gửi cho đối thủ.
-     * 
-     * @param senderState     PlayerState của người gửi.
-     * @param originalMessage Tin nhắn gốc từ client.
-     */
     public void handleChatMessage(PlayerState senderState, Message originalMessage) {
         PlayerState recipientState = senderState.getOpponent();
         if (recipientState == null)
             return;
-
         String messageContent = (String) originalMessage.data.get("message");
         if (messageContent == null || messageContent.isBlank())
             return;
 
-        // Tạo một tin nhắn mới để gửi đi, thêm tên người gửi vào
         Message forwardMessage = new Message(Message.Type.IN_GAME_CHAT);
         forwardMessage.data = Map.of(
                 "sender", senderState.getClient().getUser().getUsername(),
                 "message", messageContent);
-
-        // ✅ Chỉ gửi cho đối thủ, không phải cho mọi người
         listener.onSendMessage(recipientState, forwardMessage);
     }
 
@@ -237,6 +270,7 @@ public class MatchSession {
         endMsg.data = Map.of("reason", reason);
         listener.onSendMessage(player1, endMsg);
         listener.onSendMessage(player2, endMsg);
+        broadcastToSpectators(endMsg);
 
         Message rematchReq = new Message(Message.Type.REMATCH_REQ);
         listener.onSendMessage(player1, rematchReq);
@@ -248,14 +282,23 @@ public class MatchSession {
             roundTimer.cancel();
             roundTimer = null;
         }
-
         player1.getClient().setMatch(null);
         player2.getClient().setMatch(null);
         player1.reset();
         player2.reset();
         player1.getClient().setInGame(false);
         player2.getClient().setInGame(false);
-
         listener.onPlayerStatusUpdate();
+        listener.onMatchFinished(this);
+    }
+
+    private void scheduleRoundTimeout() {
+        roundTimer = new Timer();
+        roundTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                evaluateRound();
+            }
+        }, 15000);
     }
 }

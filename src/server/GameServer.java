@@ -1,24 +1,19 @@
 package server;
 
-import server.dao.UserDAO;
-import server.network.ClientHandler;
+import server.network.ClientInitializer;
+
 import server.network.MessageHandler;
 import server.service.AuthenticationService;
 import server.service.BroadcastService;
-import server.service.ChatService;
-import server.service.LeaderboardService;
-import server.service.LobbyService;
-import server.service.MatchService;
 import server.view.ServerView;
-import shared.model.Message;
-import shared.model.User;
 
-import java.io.*;
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+//Vận hành Server, Chấp nhận kết nối và giao phó cho ClientInitializer.
 
 public class GameServer {
     private final int port;
@@ -46,88 +41,18 @@ public class GameServer {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 view.showMessage("New client connected: " + clientSocket.getInetAddress());
-                clientProcessingPool.execute(() -> handleNewClient(clientSocket));
+
+                clientProcessingPool.execute(() -> {
+                    new ClientInitializer(
+                            clientSocket,
+                            authService,
+                            lobby,
+                            broadcastService,
+                            messageHandler,
+                            clientProcessingPool,
+                            view).processConnection();
+                });
             }
         }
-    }
-
-    private void handleNewClient(Socket socket) {
-        try {
-            ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-            oos.flush();
-            ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
-
-            Message loginMsg = (Message) ois.readObject();
-            if (loginMsg.type != Message.Type.LOGIN) {
-                oos.writeObject(new Message(Message.Type.ERROR));
-                socket.close();
-                return;
-            }
-
-            String username = (String) loginMsg.data.get("username");
-            String passHash = (String) loginMsg.data.get("passwordHash");
-
-            User user = authService.authenticate(username, passHash);
-
-            if (user == null || lobby.isUserOnline(username)) {
-                String reason = (user == null) ? "Wrong password" : "User already logged in";
-                Message failMsg = new Message(Message.Type.LOGIN_FAIL);
-                failMsg.data = Map.of("reason", reason);
-                oos.writeObject(failMsg);
-                socket.close();
-                return;
-            }
-
-            ClientHandler handler = new ClientHandler(socket, ois, oos, user, messageHandler, this);
-            lobby.addOnline(handler);
-            broadcastService.broadcastUserList();
-
-            handler.send(new Message(Message.Type.LOGIN_OK));
-            clientProcessingPool.execute(handler::listen);
-            view.showMessage("User logged in: " + username);
-
-        } catch (Exception e) {
-            view.showError("Client connection error: " + e.getMessage());
-            try {
-                if (socket != null && !socket.isClosed())
-                    socket.close();
-            } catch (IOException ignored) {
-            }
-        }
-    }
-
-    public ExecutorService getPool() {
-        return clientProcessingPool;
-    }
-
-    public Lobby getLobby() {
-        return lobby;
-    }
-
-    public BroadcastService getBroadcastService() {
-        return broadcastService;
-    }
-
-    public static void main(String[] args) throws Exception {
-        ServerView view = new ServerView();
-        UserDAO userDAO = new UserDAO();
-
-        Lobby lobby = new Lobby(view);
-
-        AuthenticationService authService = new AuthenticationService(userDAO);
-        BroadcastService broadcastService = new BroadcastService(lobby);
-        LeaderboardService leaderboardService = new LeaderboardService(userDAO);
-
-        MatchService matchService = new MatchService(userDAO, broadcastService);
-
-        LobbyService lobbyService = new LobbyService(lobby, matchService);
-
-        ChatService chatService = new ChatService(lobby);
-
-        MessageHandler messageHandler = new MessageHandler(lobbyService, matchService, leaderboardService, chatService);
-
-        GameServer server = new GameServer(55555, view, lobby, authService, messageHandler, broadcastService);
-
-        server.start();
     }
 }

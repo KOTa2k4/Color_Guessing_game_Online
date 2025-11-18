@@ -3,10 +3,9 @@ package server.service;
 import server.Lobby;
 import server.network.ClientHandler;
 import shared.model.Message;
-
 import java.util.Map;
 
-public class LobbyService {
+public class LobbyService implements IMessageService {
     private final Lobby lobby;
     private final MatchService matchService;
 
@@ -15,13 +14,25 @@ public class LobbyService {
         this.matchService = matchService;
     }
 
-    /**
-     * Xử lý khi một người chơi gửi lời mời thách đấu.
-     * 
-     * @param challenger Người gửi lời mời.
-     * @param m          Tin nhắn chứa thông tin người bị thách đấu.
-     */
-    public void handleChallenge(ClientHandler challenger, Message m) {
+    // Nhận tất cả tin nhắn liên quan đến Lobby.
+
+    @Override
+    public void handleMessage(Message m, ClientHandler sender) {
+        switch (m.type) {
+            case CHALLENGE:
+                handleChallenge(sender, m);
+                break;
+            case CHALLENGE_RESP:
+                handleChallengeResponse(sender, m);
+                break;
+            default:
+                // Không làm gì nếu tin nhắn không khớp
+                break;
+        }
+    }
+
+    // Xử lý khi một người chơi gửi lời mời thách đấu.
+    private void handleChallenge(ClientHandler challenger, Message m) {
         String targetUsername = (String) m.data.get("target");
 
         // Không cho phép tự thách đấu chính mình
@@ -43,13 +54,8 @@ public class LobbyService {
         }
     }
 
-    /**
-     * Xử lý khi một người chơi phản hồi lại lời thách đấu.
-     * 
-     * @param responder Người phản hồi.
-     * @param m         Tin nhắn chứa câu trả lời (accept/decline).
-     */
-    public void handleChallengeResponse(ClientHandler responder, Message m) {
+    // Xử lý khi một người chơi phản hồi lại lời thách đấu.
+    private void handleChallengeResponse(ClientHandler responder, Message m) {
         boolean accepted = (boolean) m.data.get("accept");
         String challengerUsername = m.to;
         ClientHandler challengerHandler = lobby.findHandler(challengerUsername);
@@ -59,7 +65,7 @@ public class LobbyService {
             if (accepted && !challengerHandler.isInGame() && !responder.isInGame()) {
                 matchService.startNewMatch(challengerHandler, responder);
             } else {
-
+                // (Không làm gì nếu từ chối)
             }
         }
     }

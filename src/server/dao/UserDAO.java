@@ -14,7 +14,7 @@ public class UserDAO {
 
     public User findByUsername(String username) throws SQLException {
 
-        String sql = "SELECT id, username, password_hash, total_points, total_wins FROM users WHERE username=?";
+        String sql = "SELECT id, username, password_hash, total_points, total_wins, isAdmin FROM users WHERE username=?";
 
         try (Connection conn = DataSourceFactory.getDataSource().getConnection();
                 PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -28,6 +28,7 @@ public class UserDAO {
                     u.setPasswordHash(rs.getString("password_hash"));
                     u.setTotalPoints(rs.getDouble("total_points"));
                     u.setTotalWins(rs.getInt("total_wins"));
+                    u.setAdmin(rs.getBoolean("isAdmin"));
                     return u;
                 }
             }
@@ -69,7 +70,16 @@ public class UserDAO {
 
             // Thao tác 1
             try (PreparedStatement stmt = conn.prepareStatement(insertMatchSql)) {
-                // ... set các tham số ...
+                stmt.setInt(1, playerAId);
+                stmt.setInt(2, playerBId);
+                stmt.setDouble(3, scoreA);
+                stmt.setDouble(4, scoreB);
+
+                if (winnerId == null) {
+                    stmt.setNull(5, java.sql.Types.INTEGER);
+                } else {
+                    stmt.setInt(5, winnerId);
+                }
                 stmt.executeUpdate();
             }
 
@@ -120,5 +130,77 @@ public class UserDAO {
 
         }
         return users;
+    }
+
+    // THÊM PHƯƠNG THỨC NÀY (vào cuối UserDAO.java)
+    // THÊM PHƯƠNG THỨC NÀY (vào cuối UserDAO.java)
+    public List<shared.model.MatchRecord> getMatchHistory(int userId) {
+        List<shared.model.MatchRecord> history = new ArrayList<>();
+
+        // Câu SQL JOIN dùng 'player_a' và 'player_b' cho đúng với CSDL của bạn
+        String sql = "SELECT " +
+                "  m.score_a, m.score_b, m.played_at, " +
+                "  pA.username AS player_a_name, " +
+                "  pB.username AS player_b_name, " +
+                "  w.username AS winner_name " +
+                "FROM matches m " +
+                "JOIN users pA ON m.player_a = pA.id " + // Dùng player_a
+                "JOIN users pB ON m.player_b = pB.id " + // Dùng player_b
+                "LEFT JOIN users w ON m.winner_id = w.id " +
+                "WHERE m.player_a = ? OR m.player_b = ? " + // Dùng player_a, player_b
+                "ORDER BY m.played_at DESC LIMIT 20";
+
+        try (Connection conn = DataSourceFactory.getDataSource().getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setInt(1, userId);
+            pstmt.setInt(2, userId);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    history.add(new shared.model.MatchRecord(
+                            rs.getString("player_a_name"),
+                            rs.getString("player_b_name"),
+                            rs.getDouble("score_a"), // Ép kiểu về int
+                            rs.getDouble("score_b"), // Ép kiểu về int
+                            rs.getString("winner_name"), // Sẽ là null nếu hòa
+                            rs.getTimestamp("played_at")));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return history;
+    }
+
+    // THÊM VÀO CUỐI TỆP: server/dao/UserDAO.java
+    public double getTotalPoints(int userId) {
+        String sql = "SELECT total_points FROM users WHERE id = ?";
+        try (Connection conn = DataSourceFactory.getDataSource().getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next())
+                    return rs.getDouble("total_points");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    public int getTotalWins(int userId) {
+        String sql = "SELECT total_wins FROM users WHERE id = ?";
+        try (Connection conn = DataSourceFactory.getDataSource().getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next())
+                    return rs.getInt("total_wins");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
     }
 }

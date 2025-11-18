@@ -5,9 +5,10 @@ import java.io.Serializable;
 public class User implements Serializable {
     private int id;
     private String username;
-    private String passwordHash; // store hashed in DB
+    private String passwordHash;
     private double totalPoints;
     private int totalWins;
+    private boolean isAdmin;
 
     public User() {
     }
@@ -25,7 +26,14 @@ public class User implements Serializable {
         this.username = username;
     }
 
-    // getters/setters
+    public boolean isAdmin() {
+        return isAdmin;
+    }
+
+    public void setAdmin(boolean admin) {
+        isAdmin = admin;
+    }
+
     public int getId() {
         return id;
     }
