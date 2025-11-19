@@ -320,27 +320,30 @@ add(colorWrapper, BorderLayout.CENTER);
     }
 
     public void appendChatMessage(String sender, String message) {
-        SwingUtilities.invokeLater(() -> {
-            inGameChatArea.append("[" + sender + "]: " + message + "\n");
-            inGameChatArea.setCaretPosition(inGameChatArea.getDocument().getLength());
+    SwingUtilities.invokeLater(() -> {
+        // Hiển thị tin nhắn trực tiếp trong JTextArea
+        inGameChatArea.append("[" + sender + "]: " + message + "\n");
+        inGameChatArea.setCaretPosition(inGameChatArea.getDocument().getLength());
 
-            // Nhấp nháy khi có tin nhắn mới
-            if (!sender.equals("Bạn")) {
-                Timer flash = new Timer();
-                final int[] count = {0};
-                flash.scheduleAtFixedRate(new TimerTask() {
-                    @Override public void run() {
-                        if (count[0] >= 8) {
-                            inGameChatArea.setForeground(Color.CYAN);
-                            flash.cancel();
-                            return;
-                        }
-                        inGameChatArea.setForeground(count[0]++ % 2 == 0 ? Color.MAGENTA : Color.CYAN);
+        // Nhấp nháy màu tin nhắn mới nếu không phải của bạn
+        if (!sender.equals("Bạn")) {
+            Timer flash = new Timer();
+            final int[] count = {0};
+            flash.scheduleAtFixedRate(new java.util.TimerTask() {
+                @Override
+                public void run() {
+                    if (count[0] >= 8) {
+                        inGameChatArea.setForeground(Color.CYAN);
+                        flash.cancel();
+                        return;
                     }
-                }, 0, 200);
-            }
-        });
-    }
+                    inGameChatArea.setForeground(count[0]++ % 2 == 0 ? Color.MAGENTA : Color.CYAN);
+                }
+            }, 0, 200);
+        }
+    });
+}
+
 
     private void sendMoveAndClose(String rgb) {
         try {
