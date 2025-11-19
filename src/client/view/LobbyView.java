@@ -2,27 +2,25 @@ package client.view;
 
 import client.control.ClientController;
 import client.GameClient;
+import shared.model.MatchRecord;
 import shared.model.Message;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.geom.Ellipse2D;
+import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Lớp View (Giao diện) cho sảnh chờ.
- * Chịu trách nhiệm hiển thị form đăng nhập, danh sách người dùng và chat sảnh
- * chờ.
- * Nó không biết gì về logic game.
- */
 public class LobbyView extends JFrame {
     private GameClient client;
-    private ClientController controller; // ✅ Giữ tham chiếu đến Controller
+    private ClientController controller;
 
-    // --- Các thành phần UI của sảnh chờ ---
+    // UI Components
     private JTextField usernameField;
     private JPasswordField passwordField;
     private JButton loginBtn;
@@ -30,157 +28,264 @@ public class LobbyView extends JFrame {
     private DefaultListModel<String> listModel;
     private JList<String> userList;
     private JTextArea chatArea;
+    private JTextArea lbPreview; // ← THÊM DÒNG NÀY
     private JTextField messageField;
     private JButton sendChatButton;
     private JButton leaderboardBtn;
-    private JPanel loginPanel; // <-- THÊM DÒNG NÀY
-    private JSplitPane centerSplit; // <-- THÊM DÒNG NÀY
-    private JPanel bottomPanel; // <-- THÊM DÒNG NÀY
     private JButton logoutBtn;
+    private JButton btnHistory;
     private JButton btnAdminPanel;
 
+    // Panels để ẩn/hiện
+    private NeonCard loginCard;
+    private JPanel bottomPanel;
+
     public LobbyView(String host, int port) throws Exception {
-        super("Game Lobby");
-        setSize(400, 600);
+        super("GAME LOBBY - NEON EDITION");
+        setSize(1150, 720);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+
+        // Background neon + stars
+        setContentPane(new BackgroundPanel());
+        getContentPane().setLayout(new BorderLayout());
+
         initComponents();
+        setVisible(true);
     }
 
     private void initComponents() {
-        // --- Panel login ---
-        loginPanel = new JPanel(new GridLayout(3, 2, 5, 5));
-        loginPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        loginPanel.add(new JLabel("Username:"));
-        usernameField = new JTextField();
-        loginPanel.add(usernameField);
-        loginPanel.add(new JLabel("Password:"));
-        passwordField = new JPasswordField();
-        loginPanel.add(passwordField);
-        loginBtn = new JButton("Login");
-        loginPanel.add(new JLabel());
-        loginPanel.add(loginBtn);
-        registerBtn = new JButton("Register"); // <-- NÚT MỚI
-        loginPanel.add(registerBtn);
-        add(loginPanel, BorderLayout.NORTH);
+        // ===================== HEADER =====================
+        TitlePanel titlePanel = new TitlePanel("GAME LOBBY");
+        titlePanel.setPreferredSize(new Dimension(0, 100));
+        getContentPane().add(titlePanel, BorderLayout.NORTH);
 
-        // --- Panel trung tâm (User List và Chat) ---
+        // ===================== MAIN SPLIT =====================
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        mainSplit.setDividerSize(8);
+        mainSplit.setContinuousLayout(true);
+        mainSplit.setOpaque(false);
+        mainSplit.setBorder(null);
+
+        // ===================== LEFT PANEL (Login + Leaderboard) =====================
+        JPanel leftWrapper = new JPanel(new BorderLayout(12, 12));
+        leftWrapper.setOpaque(false);
+        leftWrapper.setBorder(new EmptyBorder(18, 18, 18, 10));
+
+        // Login Card
+        loginCard = new NeonCard(new Color(255, 0, 180), new Color(55, 0, 90));
+        loginCard.setPreferredSize(new Dimension(380, 340));
+        loginCard.setLayout(null);
+
+        JLabel signLabel = new JLabel("SIGN IN");
+        signLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        signLabel.setForeground(Color.WHITE);
+        signLabel.setBounds(24, 18, 300, 34);
+        loginCard.add(signLabel);
+
+        usernameField = new JTextField();
+        usernameField.setBounds(24, 76, 332, 50);
+        styleInput(usernameField);
+        loginCard.add(usernameField);
+
+        passwordField = new JPasswordField();
+        passwordField.setBounds(24, 140, 332, 50);
+        styleInput(passwordField);
+        loginCard.add(passwordField);
+
+        loginBtn = new NeonButton("LOGIN", new Color(0, 220, 255), new Color(0, 120, 180));
+        loginBtn.setBounds(40, 220, 140, 50);
+        loginBtn.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        loginCard.add(loginBtn);
+
+        registerBtn = new NeonButton("REGISTER", new Color(255, 0, 180), new Color(120, 0, 80));
+        registerBtn.setBounds(200, 220, 156, 50);
+        registerBtn.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        loginCard.add(registerBtn);
+
+        leftWrapper.add(loginCard, BorderLayout.NORTH);
+
+        // Leaderboard preview card
+        NeonCard leaderboardCard = new NeonCard(new Color(0, 220, 255), new Color(0, 50, 90));
+        leaderboardCard.setLayout(new BorderLayout());
+        leaderboardCard.setBorder(new EmptyBorder(12, 12, 12, 12));
+        leaderboardCard.setPreferredSize(new Dimension(380, 220));
+
+        JLabel lbTitle = new JLabel("LEADERBOARD PREVIEW");
+        lbTitle.setForeground(Color.WHITE);
+        lbTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        leaderboardCard.add(lbTitle, BorderLayout.NORTH);
+
+        this.lbPreview = new JTextArea("Đang tải bảng xếp hạng...");
+        this.lbPreview.setEditable(false);
+        this.lbPreview.setBackground(new Color(10, 0, 20));
+        this.lbPreview.setForeground(Color.CYAN);
+        this.lbPreview.setFont(new Font("Consolas", Font.PLAIN, 14));
+        this.lbPreview.setLineWrap(true);
+        this.lbPreview.setWrapStyleWord(true);
+        leaderboardCard.add(new JScrollPane(this.lbPreview), BorderLayout.CENTER);
+
+        leaderboardBtn = new NeonButton("LEADERBOARD", new Color(255, 0, 180), new Color(160, 0, 100));
+        JPanel btnWrap = new JPanel();
+        btnWrap.setOpaque(false);
+        btnWrap.add(leaderboardBtn);
+        leaderboardCard.add(btnWrap, BorderLayout.SOUTH);
+
+        leftWrapper.add(leaderboardCard, BorderLayout.CENTER);
+        mainSplit.setLeftComponent(leftWrapper);
+
+        // ===================== RIGHT PANEL (Users + Chat) =====================
+        JPanel rightWrapper = new JPanel(new BorderLayout(12, 12));
+        rightWrapper.setOpaque(false);
+        rightWrapper.setBorder(new EmptyBorder(18, 10, 18, 18));
+
+        // Users Card
+        NeonCard usersCard = new NeonCard(new Color(0, 210, 255), new Color(0, 40, 80));
+        usersCard.setLayout(new BorderLayout(8, 8));
+        usersCard.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        JLabel usersLabel = new JLabel("ONLINE PLAYERS");
+        usersLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        usersLabel.setForeground(Color.WHITE);
+        usersCard.add(usersLabel, BorderLayout.NORTH);
+
         listModel = new DefaultListModel<>();
         userList = new JList<>(listModel);
+        userList.setCellRenderer(new AvatarListCellRenderer());
+        userList.setBackground(new Color(8, 0, 18));
+        userList.setForeground(Color.WHITE);
 
-        JPanel chatPanel = new JPanel(new BorderLayout(5, 5));
-        chatPanel.setBorder(BorderFactory.createTitledBorder("Lobby Chat"));
+        JScrollPane userScroll = new JScrollPane(userList);
+        userScroll.setOpaque(false);
+        userScroll.getViewport().setOpaque(false);
+        usersCard.add(userScroll, BorderLayout.CENTER);
+        rightWrapper.add(usersCard, BorderLayout.NORTH);
+
+        // Chat Card
+        NeonCard chatCard = new NeonCard(new Color(255, 80, 255), new Color(30, 0, 30));
+        chatCard.setLayout(new BorderLayout(8, 8));
+        chatCard.setBorder(new EmptyBorder(12, 12, 12, 12));
+
+        JLabel chatLabel = new JLabel("LOBBY CHAT");
+        chatLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        chatLabel.setForeground(Color.WHITE);
+        chatCard.add(chatLabel, BorderLayout.NORTH);
+
         chatArea = new JTextArea();
         chatArea.setEditable(false);
         chatArea.setLineWrap(true);
         chatArea.setWrapStyleWord(true);
-        chatPanel.add(new JScrollPane(chatArea), BorderLayout.CENTER);
+        chatArea.setBackground(new Color(6, 0, 12));
+        chatArea.setForeground(Color.WHITE);
+        chatArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
 
-        JPanel messageInputPanel = new JPanel(new BorderLayout(5, 5));
+        JScrollPane chatScroll = new JScrollPane(chatArea);
+        chatScroll.setOpaque(false);
+        chatScroll.getViewport().setOpaque(false);
+        chatCard.add(chatScroll, BorderLayout.CENTER);
+
+        JPanel inputRow = new JPanel(new BorderLayout(8, 8));
+        inputRow.setOpaque(false);
+
         messageField = new JTextField();
-        sendChatButton = new JButton("Send");
-        messageInputPanel.add(messageField, BorderLayout.CENTER);
-        messageInputPanel.add(sendChatButton, BorderLayout.EAST);
-        chatPanel.add(messageInputPanel, BorderLayout.SOUTH);
+        messageField.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        styleInput(messageField);
 
-        centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JScrollPane(userList), chatPanel);
-        centerSplit.setResizeWeight(0.6);
-        add(centerSplit, BorderLayout.CENTER);
+        sendChatButton = new NeonButton("SEND", new Color(255, 0, 150), new Color(120, 0, 80));
+        sendChatButton.setPreferredSize(new Dimension(120, 46));
 
-        // --- Panel dưới cùng ---
-        // --- Panel dưới cùng ---
-        leaderboardBtn = new JButton("Leaderboard");
-        JButton btnHistory = new JButton("Lịch sử đấu");
-        logoutBtn = new JButton("Đăng xuất");
-        btnAdminPanel = new JButton("Admin Panel");
-        btnAdminPanel.setVisible(false); // Ẩn ban đầu
+        inputRow.add(messageField, BorderLayout.CENTER);
+        inputRow.add(sendChatButton, BorderLayout.EAST);
+        chatCard.add(inputRow, BorderLayout.SOUTH);
 
-        bottomPanel = new JPanel(); // <-- Khởi tạo JPanel TRƯỚC
+        rightWrapper.add(chatCard, BorderLayout.CENTER);
+        mainSplit.setRightComponent(rightWrapper);
+        mainSplit.setDividerLocation(400);
+
+        getContentPane().add(mainSplit, BorderLayout.CENTER);
+
+        // ===================== BOTTOM PANEL (sau khi login) =====================
+        bottomPanel = new JPanel();
+        bottomPanel.setOpaque(false);
+        bottomPanel.setBorder(new EmptyBorder(15, 20, 20, 20));
+        bottomPanel.setLayout(new FlowLayout(FlowLayout.RIGHT, 20, 10));
+
+        btnHistory = new NeonButton("LỊCH SỬ ĐẤU", new Color(180, 255, 100), new Color(80, 120, 0));
+        logoutBtn = new NeonButton("ĐĂNG XUẤT", new Color(255, 80, 80), new Color(140, 0, 0));
+        btnAdminPanel = new NeonButton("ADMIN PANEL", new Color(255, 215, 0), new Color(180, 120, 0));
+        btnAdminPanel.setVisible(false);
+
         bottomPanel.add(leaderboardBtn);
         bottomPanel.add(btnHistory);
         bottomPanel.add(logoutBtn);
-        bottomPanel.add(btnAdminPanel); // <-- Thêm nút Admin vào đây
-        add(bottomPanel, BorderLayout.SOUTH);
+        bottomPanel.add(btnAdminPanel);
 
-        // --- Action Listeners ---
+        getContentPane().add(bottomPanel, BorderLayout.SOUTH);
+        bottomPanel.setVisible(false); // ẩn lúc đầu
+
+        // ===================== LISTENERS =====================
         loginBtn.addActionListener(e -> doLogin());
         registerBtn.addActionListener(e -> doRegister());
         sendChatButton.addActionListener(e -> sendChatMessage());
-        logoutBtn.addActionListener(e -> resetToLoginUI());
-        messageField.addActionListener(e -> sendChatMessage()); // Gửi khi nhấn Enter
+        messageField.addActionListener(e -> sendChatMessage());
 
-        leaderboardBtn.addActionListener(e -> {
-            try {
-                client.send(new Message(Message.Type.LEADERBOARD_REQ));
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        });
-        btnAdminPanel.addActionListener(e -> {
-            try {
-                client.send(new Message(Message.Type.GET_MATCH_LIST));
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        });
-        btnHistory.addActionListener(e -> {
-            try {
-                client.send(new Message(Message.Type.GET_MATCH_HISTORY));
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        });
+        leaderboardBtn.addActionListener(e -> sendToServer(Message.Type.LEADERBOARD_REQ));
+        btnHistory.addActionListener(e -> sendToServer(Message.Type.GET_MATCH_HISTORY));
+        logoutBtn.addActionListener(e -> resetToLoginUI());
+        btnAdminPanel.addActionListener(e -> sendToServer(Message.Type.GET_MATCH_LIST));
 
         userList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 String selected = userList.getSelectedValue();
                 if (selected != null) {
-                    String targetUsername = selected.split(" \\| ")[0].trim();
-                    try {
-                        Message m = new Message(Message.Type.CHALLENGE);
-                        m.data = Map.of("target", targetUsername);
-                        client.send(m);
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
+                    String target = selected.split(" \\| ")[0].trim();
+                    sendToServer(Message.Type.CHALLENGE, Map.of("target", target));
                 }
             }
         });
 
         addWindowListener(new WindowAdapter() {
+            @Override
             public void windowClosing(WindowEvent e) {
-                if (client != null)
-                    try {
-                        client.close();
-                    } catch (Exception e1) {
-                        // TODO Auto-generated catch block
-                        e1.printStackTrace();
-                    }
+                if (client != null) try { client.close(); } catch (Exception ex) { ex.printStackTrace(); }
             }
         });
-        // ... (code addWindowListener)
+    }
 
-        // --- Trạng thái ban đầu ---
-        // Ẩn sảnh chờ, chỉ hiện màn hình đăng nhập
-        loginPanel.setVisible(true);
-        centerSplit.setVisible(false);
-        bottomPanel.setVisible(false);
+    private void sendToServer(Message.Type type) {
+        sendToServer(type, null);
+    }
+
+    private void sendToServer(Message.Type type, Map<String, Object> data) {
+        if (client == null) return;
+        try {
+            Message m = new Message(type);
+            if (data != null) m.data = data;
+            client.send(m);
+        } catch (Exception ex) { ex.printStackTrace(); }
     }
 
     private void doLogin() {
+        connectAndSend(Message.Type.LOGIN);
+    }
+
+    private void doRegister() {
+        connectAndSend(Message.Type.REGISTER_REQ);
+    }
+
+    private void connectAndSend(Message.Type type) {
         try {
-            client = new GameClient("localhost", 55555); // Thay đổi host/port nếu cần
+            client = new GameClient("172.11.42.188", 55555); // thay host nếu cần
             controller = new ClientController(client);
             controller.setLobbyView(this);
-
-            // ✅ Khi nhận được tin nhắn, GameClient sẽ gọi controller để xử lý
             client.setOnMessage(controller::handle);
 
             String username = usernameField.getText().trim();
             String password = new String(passwordField.getPassword());
 
-            Message loginMsg = new Message(Message.Type.LOGIN);
-            loginMsg.data = Map.of("username", username, "passwordHash", password);
-            client.send(loginMsg);
+            Message msg = new Message(type);
+            msg.data = Map.of("username", username, "passwordHash", password);
+            client.send(msg);
 
             loginBtn.setEnabled(false);
             registerBtn.setEnabled(false);
@@ -188,67 +293,50 @@ public class LobbyView extends JFrame {
 
         } catch (Exception e) {
             e.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Cannot connect to server.", "Connection Error",
-                    JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Không thể kết nối server!", "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
     }
-    // THÊM PHƯƠNG THỨC NÀY VÀO LOBBYVIEW.JAVA (bên dưới doLogin())
 
-    private void doRegister() {
+    // ===================== UI CONTROL =====================
+    public void showLobbyUI(boolean isAdmin) {
+        loginCard.setVisible(false);
+        bottomPanel.setVisible(true);
+        btnAdminPanel.setVisible(isAdmin);
+    }
+
+    private void resetToLoginUI() {
         try {
-            client = new GameClient("localhost", 55555); // Thay đổi host/port nếu cần
-            controller = new ClientController(client);
-            controller.setLobbyView(this);
+            if (client != null) {
+                client.send(new Message(Message.Type.LOGOUT));
+                client.close();
+            }
+        } catch (Exception ignored) {}
+        client = null;
+        controller = null;
 
-            // ✅ Khi nhận được tin nhắn, GameClient sẽ gọi controller để xử lý
-            client.setOnMessage(controller::handle);
+        loginCard.setVisible(true);
+        bottomPanel.setVisible(false);
+        btnAdminPanel.setVisible(false);
 
-            String username = usernameField.getText().trim();
-            String password = new String(passwordField.getPassword());
-
-            // SỬA CHỖ NÀY:
-            Message registerMsg = new Message(Message.Type.REGISTER_REQ);
-            registerMsg.data = Map.of("username", username, "passwordHash", password);
-            client.send(registerMsg);
-
-            loginBtn.setEnabled(false); // Vẫn vô hiệu hóa
-            registerBtn.setEnabled(false);
-            passwordField.setEnabled(false);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Cannot connect to server.", "Connection Error",
-                    JOptionPane.ERROR_MESSAGE);
-        }
-    }
-    // THÊM PHƯƠNG THỨC NÀY VÀO LOBBYVIEW.JAVA
-
-    public void showRegisterError(Message m) {
-        JOptionPane.showMessageDialog(this, "Register failed: " + m.data.getOrDefault("reason", "Unknown"),
-                "Register Failed", JOptionPane.ERROR_MESSAGE);
+        usernameField.setEnabled(true);
+        passwordField.setEnabled(true);
+        passwordField.setText("");
         loginBtn.setEnabled(true);
         registerBtn.setEnabled(true);
-        passwordField.setEnabled(true);
+
+        listModel.clear();
+        chatArea.setText("");
     }
 
     private void sendChatMessage() {
-        String message = messageField.getText().trim();
-        if (!message.isEmpty()) {
-            try {
-                Message msg = new Message(Message.Type.CHAT_MESSAGE);
-                msg.data = Map.of("message", message);
-                client.send(msg);
-                messageField.setText("");
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+        String text = messageField.getText().trim();
+        if (!text.isEmpty() && client != null) {
+            sendToServer(Message.Type.CHAT_MESSAGE, Map.of("message", text));
+            messageField.setText("");
         }
     }
 
-    // ❌ TOÀN BỘ PHƯƠNG THỨC handle() VÀ showColorGameDialog() ĐÃ BỊ XÓA BỎ
-
-    // --- CÁC PHƯƠNG THỨC CÔNG KHAI ĐỂ CONTROLLER CẬP NHẬT GIAO DIỆN ---
-
+    // ===================== CÁC HÀM PUBLIC CHO CONTROLLER =====================
     public void updateUserList(Message m) {
         List<Map<String, Object>> users = (List<Map<String, Object>>) m.data.get("users");
         String currentUser = usernameField.getText().trim();
@@ -279,6 +367,14 @@ public class LobbyView extends JFrame {
         passwordField.setEnabled(true);
     }
 
+    public void showRegisterError(Message m) {
+        JOptionPane.showMessageDialog(this, "Register failed: " + m.data.getOrDefault("reason", "Unknown"),
+                "Register Failed", JOptionPane.ERROR_MESSAGE);
+        loginBtn.setEnabled(true);
+        registerBtn.setEnabled(true);
+        passwordField.setEnabled(true);
+    }
+
     public void showChallengeRequest(Message m) {
         int choice = JOptionPane.showConfirmDialog(this, "Challenge from " + m.from + ". Accept?",
                 "Challenge", JOptionPane.YES_NO_OPTION);
@@ -287,14 +383,12 @@ public class LobbyView extends JFrame {
             response.to = m.from;
             response.data = Map.of("accept", choice == JOptionPane.YES_OPTION);
             client.send(response);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     public void showLeaderboard(Message m) {
         List<Map<String, Object>> lbUsers = (List<Map<String, Object>>) m.data.get("users");
-        StringBuilder sb = new StringBuilder("🏆 Leaderboard:\n");
+        StringBuilder sb = new StringBuilder("LEADERBOARD:\n");
         int rank = 1;
         for (Map<String, Object> u : lbUsers) {
             sb.append(String.format("%d. %s - %.1f điểm - %d thắng\n",
@@ -304,141 +398,316 @@ public class LobbyView extends JFrame {
         JOptionPane.showMessageDialog(this, sb.toString(), "Leaderboard", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    // THÊM PHƯƠNG THỨC MỚI NÀY VÀO CUỐI TỆP LobbyView.java
-
-    /**
-     * Tạo và hiển thị một JDialog mới chứa lịch sử đấu.
-     * 
-     * @param history Danh sách lịch sử
-     */
-    public void showMatchHistoryDialog(List<shared.model.MatchRecord> history) {
-        // Tạo cửa sổ dialog mới, đặt 'this' (LobbyView) làm cửa sổ cha
-        JDialog historyDialog = new JDialog(this, "Lịch sử đấu", true);
-        historyDialog.setLayout(new BorderLayout());
-        historyDialog.setSize(700, 400); // Kích thước cửa sổ
+    public void showMatchHistoryDialog(List<MatchRecord> history) {
+        JDialog d = new JDialog(this, "Lịch sử đấu", true);
+        d.setSize(700, 450);
+        d.setLayout(new BorderLayout());
 
         if (history == null || history.isEmpty()) {
-            historyDialog.add(new JLabel("Không tìm thấy trận đấu nào.", SwingConstants.CENTER));
+            d.add(new JLabel("Không có lịch sử đấu nào.", SwingConstants.CENTER));
         } else {
-            // Dùng DefaultListModel để đưa danh sách vào JList
-            DefaultListModel<shared.model.MatchRecord> listModel = new DefaultListModel<>();
-            for (shared.model.MatchRecord record : history) {
-                // Tận dụng hàm .toString() bạn đã viết rất tốt trong MatchRecord
-                listModel.addElement(record);
-            }
-
-            JList<shared.model.MatchRecord> historyList = new JList<>(listModel);
-
-            // Dùng font Monospaced giúp các cột hiển thị thẳng hàng
-            historyList.setFont(new Font("Monospaced", Font.PLAIN, 12));
-
-            // Thêm thanh cuộn
-            JScrollPane scrollPane = new JScrollPane(historyList);
-            historyDialog.add(scrollPane, BorderLayout.CENTER);
+            DefaultListModel<MatchRecord> lm = new DefaultListModel<>();
+            history.forEach(lm::addElement);
+            JList<MatchRecord> list = new JList<>(lm);
+            list.setFont(new Font("Monospaced", Font.PLAIN, 13));
+            d.add(new JScrollPane(list), BorderLayout.CENTER);
         }
 
-        // Nút Đóng
-        JButton btnClose = new JButton("Đóng");
-        btnClose.addActionListener(e -> historyDialog.dispose());
+        JButton close = new JButton("Đóng");
+        close.addActionListener(e -> d.dispose());
+        JPanel p = new JPanel();
+        p.add(close);
+        d.add(p, BorderLayout.SOUTH);
 
-        JPanel southPanel = new JPanel();
-        southPanel.add(btnClose);
-        historyDialog.add(southPanel, BorderLayout.SOUTH);
-
-        historyDialog.setLocationRelativeTo(this); // Hiển thị ở giữa lobby
-        historyDialog.setVisible(true);
-    }
-    // THÊM 2 PHƯƠNG THỨC NÀY VÀO CUỐI LobbyView.java
-
-    /**
-     * Được gọi khi đăng nhập thành công.
-     * Ẩn panel login, hiện panel sảnh chờ.
-     */
-    public void showLobbyUI(boolean isAdmin) {
-        loginPanel.setVisible(false);
-        centerSplit.setVisible(true);
-        bottomPanel.setVisible(true);
-        btnAdminPanel.setVisible(isAdmin);
-        // Vô hiệu hóa các trường không cần nữa
-        usernameField.setEnabled(false);
-        passwordField.setEnabled(false);
-        loginBtn.setEnabled(false);
-        registerBtn.setEnabled(false);
+        d.setLocationRelativeTo(this);
+        d.setVisible(true);
     }
 
-    /**
-     * Được gọi khi nhấn nút Đăng xuất.
-     * Gửi tin nhắn LOGOUT, đóng client, và reset UI về màn hình đăng nhập.
-     */
-    private void resetToLoginUI() {
-        // 1. Gửi tin nhắn LOGOUT và đóng client
-        try {
-            if (client != null) {
-                client.send(new Message(Message.Type.LOGOUT));
-                client.close();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        client = null;
-        controller = null;
-
-        // 2. Reset UI về trạng thái ban đầu
-        loginPanel.setVisible(true);
-        centerSplit.setVisible(false);
-        bottomPanel.setVisible(false);
-
-        // Kích hoạt lại các trường
-        usernameField.setEnabled(true);
-        passwordField.setEnabled(true);
-        passwordField.setText(""); // Xóa pass cũ
-        loginBtn.setEnabled(true);
-        registerBtn.setEnabled(true);
-
-        // Xóa dữ liệu cũ
-        listModel.clear();
-        chatArea.setText("");
-    }
-
-    // THÊM HÀM MỚI NÀY VÀO LobbyView.java
     public void showMatchListDialog(List<Map<String, String>> matches) {
-        JDialog dialog = new JDialog(this, "Active Matches", true);
-        DefaultListModel<String> listModel = new DefaultListModel<>();
+        JDialog d = new JDialog(this, "Active Matches", true);
+        DefaultListModel<String> lm = new DefaultListModel<>();
+        Map<String, String> idMap = new HashMap<>();
 
-        Map<String, String> matchIdMap = new HashMap<>();
-
-        for (Map<String, String> match : matches) {
-            String id = match.get("id");
-            String p1 = match.get("p1");
-            String p2 = match.get("p2");
-            String displayText = String.format("%s vs %s", p1, p2);
-            listModel.addElement(displayText);
-            matchIdMap.put(displayText, id); // Lưu ID
+        for (Map<String, String> m : matches) {
+            String txt = m.get("p1") + " vs " + m.get("p2");
+            lm.addElement(txt);
+            idMap.put(txt, m.get("id"));
         }
 
-        JList<String> list = new JList<>(listModel);
-        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JList<String> list = new JList<>(lm);
         list.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
-                String selected = list.getSelectedValue();
-                if (selected == null)
-                    return;
-
-                String matchId = matchIdMap.get(selected);
-                try {
-                    Message m = new Message(Message.Type.SPECTATE_REQ);
-                    m.data = Map.of("matchId", matchId);
-                    client.send(m);
-                    dialog.dispose();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
+                String sel = list.getSelectedValue();
+                if (sel != null) {
+                    try {
+                        Message msg = new Message(Message.Type.SPECTATE_REQ);
+                        msg.data = Map.of("matchId", idMap.get(sel));
+                        client.send(msg);
+                        d.dispose();
+                    } catch (Exception ex) { ex.printStackTrace(); }
                 }
             }
         });
 
-        dialog.add(new JScrollPane(list));
-        dialog.setSize(300, 400);
-        dialog.setLocationRelativeTo(this);
-        dialog.setVisible(true);
+        d.add(new JScrollPane(list));
+        d.setSize(320, 400);
+        d.setLocationRelativeTo(this);
+        d.setVisible(true);
+    }
+
+    // ===================== HELPER STYLE =====================
+    private void styleInput(JTextField tf) {
+        tf.setBackground(new Color(12, 0, 20));
+        tf.setForeground(Color.WHITE);
+        tf.setCaretColor(Color.WHITE);
+        tf.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0, 180, 220), 2),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
+    }
+
+    private void styleInput(JPasswordField pf) {
+        styleInput((JTextField) pf);
+    }
+
+    // ===================== NEON CUSTOM COMPONENTS =====================
+    private static class BackgroundPanel extends JPanel {
+        private final BufferedImage stars;
+
+        BackgroundPanel() {
+            setOpaque(true);
+            stars = createStarField(1200, 800, 150);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            GradientPaint gp = new GradientPaint(0, 0, new Color(8, 0, 20), 0, getHeight(), new Color(18, 0, 40));
+            g2.setPaint(gp);
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            if (stars != null) g2.drawImage(stars, 0, 0, null);
+            g2.dispose();
+        }
+
+        private static BufferedImage createStarField(int w, int h, int count) {
+            BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = img.createGraphics();
+            for (int i = 0; i < count; i++) {
+                int x = (int) (Math.random() * w);
+                int y = (int) (Math.random() * h);
+                int alpha = (int) (Math.random() * 180 + 70);
+                g.setColor(new Color(255, 255, 255, alpha));
+                g.fillOval(x, y, 2, 2);
+            }
+            g.dispose();
+            return img;
+        }
+    }
+
+    private static class NeonCard extends JPanel {
+        private final Color glowColor;
+        private final Color innerColor;
+
+        NeonCard(Color glow, Color inner) {
+            this.glowColor = glow;
+            this.innerColor = inner;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int w = getWidth(), h = getHeight(), arc = 20;
+
+            for (int i = 18; i >= 4; i -= 4) {
+                float alpha = 0.08f * (1.0f - (i / 22f));
+                g2.setColor(new Color(glowColor.getRed(), glowColor.getGreen(), glowColor.getBlue(), (int)(alpha*255)));
+                g2.fillRoundRect(-i/2, -i/2, w + i, h + i, arc + i, arc + i);
+            }
+
+            GradientPaint gp = new GradientPaint(0, 0, innerColor.brighter(), 0, h, innerColor.darker());
+            g2.setPaint(gp);
+            g2.fillRoundRect(0, 0, w, h, arc, arc);
+
+            g2.setColor(glowColor);
+            g2.setStroke(new BasicStroke(3f));
+            g2.drawRoundRect(1, 1, w - 3, h - 3, arc, arc);
+
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    private static class NeonButton extends JButton {
+        private final Color glow;
+        private final Color base;
+
+        NeonButton(String text, Color glow, Color base) {
+            super(text);
+            this.glow = glow;
+            this.base = base;
+            setContentAreaFilled(false);
+            setFocusPainted(false);
+            setForeground(Color.WHITE);
+            setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+            setFont(new Font("Segoe UI", Font.BOLD, 14));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int w = getWidth(), h = getHeight(), arc = 18;
+
+            for (int i = 8; i >= 2; i -= 2) {
+                g2.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 20 + i*15));
+                g2.fillRoundRect(-i/2, -i/2, w + i, h + i, arc + i, arc + i);
+            }
+
+            GradientPaint gp = new GradientPaint(0, 0, base.brighter(), 0, h, base.darker());
+            g2.setPaint(gp);
+            g2.fillRoundRect(0, 0, w, h, arc, arc);
+
+            g2.setColor(new Color(255,255,255,70));
+            g2.fillRoundRect(0, 0, w, h/2, arc, arc);
+
+            g2.setColor(glow);
+            g2.setStroke(new BasicStroke(2.5f));
+            g2.drawRoundRect(1, 1, w-3, h-3, arc, arc);
+
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    private static class TitlePanel extends JComponent {
+        private final String text;
+        private float pulse = 0f;
+        private final Timer timer;
+
+        TitlePanel(String text) {
+            this.text = text;
+            setOpaque(false);
+            timer = new Timer(40, e -> {
+                pulse += 0.05f;
+                if (pulse > Math.PI*2) pulse -= (float)(Math.PI*2);
+                repaint();
+            });
+            timer.start();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            int w = getWidth(), h = getHeight();
+            int size = Math.max(32, h / 3);
+            Font font = new Font("Segoe UI Black", Font.BOLD, size);
+            g2.setFont(font);
+            FontMetrics fm = g2.getFontMetrics();
+
+            int x = (w - fm.stringWidth(text)) / 2;
+            int y = (h + fm.getAscent()) / 2 - 8;
+
+            float alpha = 0.6f + 0.4f * (float)((Math.sin(pulse) + 1) / 2.0);
+            Color base = new Color(0, 245, 255);
+
+            for (int i = 10; i >= 1; i--) {
+                float a = alpha * (1.0f - i/12f) * 0.2f;
+                g2.setColor(new Color(base.getRed(), base.getGreen(), base.getBlue(), (int)(a*255)));
+                g2.setFont(font.deriveFont(size + i * 1.8f));
+                g2.drawString(text, x - i, y - i/2);
+            }
+
+            GradientPaint gp = new GradientPaint(x, y - fm.getAscent(), new Color(180,255,255), x + fm.stringWidth(text), y, new Color(0,120,255));
+            g2.setPaint(gp);
+            g2.setFont(font);
+            g2.drawString(text, x, y);
+
+            g2.setColor(new Color(220,255,255,200));
+            g2.drawString(text, x, y);
+
+            g2.dispose();
+        }
+
+        @Override public void addNotify() { super.addNotify(); timer.start(); }
+        @Override public void removeNotify() { timer.stop(); super.removeNotify(); }
+    }
+
+    private static class AvatarListCellRenderer extends JPanel implements ListCellRenderer<String> {
+        private String text;
+        private boolean selected;
+
+        AvatarListCellRenderer() {
+            setOpaque(false);
+            setLayout(null);
+            setBorder(new EmptyBorder(6, 6, 6, 6));
+        }
+
+        @Override
+        public Component getListCellRendererComponent(JList<? extends String> list, String value, int index,
+                                                      boolean isSelected, boolean cellHasFocus) {
+            this.text = value;
+            this.selected = isSelected;
+            setPreferredSize(new Dimension(list.getWidth(), 60));
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int w = getWidth(), h = getHeight();
+
+            if (selected) {
+                g2.setColor(new Color(0, 220, 255, 40));
+                g2.fillRoundRect(6, 6, w - 12, h - 12, 14, 14);
+            }
+
+            int avSize = Math.min(44, h - 12);
+            int ax = 12, ay = (h - avSize) / 2;
+            Ellipse2D avatar = new Ellipse2D.Double(ax, ay, avSize, avSize);
+            g2.setColor(new Color(40, 0, 80));
+            g2.fill(avatar);
+            g2.setColor(new Color(255,255,255,40));
+            g2.fill(new Ellipse2D.Double(ax + 4, ay + 4, avSize - 8, avSize - 8));
+
+            String name = extractName(text);
+            String initials = initialsOf(name);
+            g2.setColor(Color.WHITE);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 15));
+            FontMetrics fm = g2.getFontMetrics();
+            int tx = ax + (avSize - fm.stringWidth(initials)) / 2;
+            int ty = ay + (avSize + fm.getAscent()) / 2 - 3;
+            g2.drawString(initials, tx, ty);
+
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            g2.setColor(Color.WHITE);
+            g2.drawString(name, ax + avSize + 14, ay + 20);
+
+            g2.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            g2.setColor(new Color(190, 210, 255));
+            g2.drawString(extractStats(text), ax + avSize + 14, ay + 38);
+
+            g2.dispose();
+        }
+
+        private String extractName(String raw) { return raw != null && raw.contains(" | ") ? raw.substring(0, raw.indexOf(" | ")) : raw; }
+        private String extractStats(String raw) { return raw != null && raw.contains(" | ") ? raw.substring(raw.indexOf(" | ") + 3) : ""; }
+        private String initialsOf(String name) {
+            if (name == null || name.isBlank()) return "";
+            String[] p = name.trim().split("\\s+");
+            return p.length > 1 ? (p[0].substring(0,1) + p[p.length-1].substring(0,1)).toUpperCase()
+                    : p[0].substring(0,1).toUpperCase();
+        }
     }
 }

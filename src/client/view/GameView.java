@@ -2,306 +2,445 @@ package client.view;
 
 import client.GameClient;
 import shared.model.Message;
+
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.List;
 import java.util.Timer;
 
 public class GameView extends JDialog {
     private final GameClient client;
-    private final String opponentName; // Lưu lại tên đối thủ để cập nhật điểm
-    private JLabel yourScoreLabel, opponentScoreLabel;
+    private final String opponentName;
+    private JLabel yourScoreLabel, opponentScoreLabel, countdownLabel, infoLabel;
     private JTextArea inGameChatArea;
+    private JTextField chatInput;
     private Timer gameLogicTimer;
     private Timer countdownTimer;
 
-    /**
-     * Constructor tạo ra toàn bộ cửa sổ game.
-     * 
-     * @param owner         Cửa sổ cha (thường là LobbyView).
-     * @param client        Đối tượng GameClient để gửi tin nhắn.
-     * @param opponent      Tên đối thủ.
-     * @param colors        Danh sách các màu RGB cho vòng đấu.
-     * @param correctColor  Màu đúng dưới dạng RGB.
-     * @param yourScore     Điểm số ban đầu của bạn.
-     * @param opponentScore Điểm số ban đầu của đối thủ.
-     */
     public GameView(JFrame owner, GameClient client, String opponent, List<Map<String, Integer>> colors,
-            Map<String, Integer> correctColor, double yourScore, double opponentScore) {
-        super(owner, "Đoán màu vs " + opponent, true);
+                    Map<String, Integer> correctColor, double yourScore, double opponentScore) {
+        super(owner, "ĐOÁN MÀU NEON - vs " + opponent.toUpperCase(), true);
         this.client = client;
         this.opponentName = opponent;
 
-        setLayout(new BorderLayout());
+        setSize(1100, 680);
+        setLocationRelativeTo(owner);
+        setResizable(false);
 
-        // --- BƯỚC 1: TẠO VÀ SẮP XẾP TẤT CẢ CÁC COMPONENT GIAO DIỆN ---
-        JPanel topPanel = createTopPanel(yourScore, opponentScore);
-        add(topPanel, BorderLayout.NORTH);
+        // Background neon + stars
+        JPanel bg = new BackgroundPanel();
+        bg.setLayout(new BorderLayout());
+        setContentPane(bg);
 
-        JPanel colorPanel = createColorPanel(colors);
-        add(colorPanel, BorderLayout.CENTER);
+        initNeonUI(colors, correctColor, yourScore, opponentScore);
+        setVisible(true);
+    }
 
-        JPanel chatPanel = createChatPanel();
+    private void initNeonUI(List<Map<String, Integer>> colors, Map<String, Integer> correctColor,
+                            double yourScore, double opponentScore) {
+
+        // ==================== HEADER ====================
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        header.setBorder(new EmptyBorder(25, 40, 15, 40));
+
+        infoLabel = new JLabel("CHỌN MÀU ĐÚNG TRONG 15 GIÂY!", SwingConstants.CENTER);
+        infoLabel.setFont(new Font("Segoe UI Black", Font.BOLD, 28));
+        infoLabel.setForeground(new Color(0, 255, 255));
+
+        countdownLabel = new JLabel("15", SwingConstants.CENTER);
+        countdownLabel.setFont(new Font("Consolas", Font.BOLD, 72));
+        countdownLabel.setForeground(new Color(255, 0, 255));
+        countdownLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 30));
+
+        JPanel scorePanel = new JPanel(new GridLayout(1, 2, 60, 0));
+        scorePanel.setOpaque(false);
+
+        yourScoreLabel = new JLabel("YOU: " + String.format("%.0f", yourScore), SwingConstants.CENTER);
+        yourScoreLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        yourScoreLabel.setForeground(new Color(0, 255, 150));
+
+        opponentScoreLabel = new JLabel(opponentName.toUpperCase() + ": " + String.format("%.0f", opponentScore), SwingConstants.CENTER);
+        opponentScoreLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        opponentScoreLabel.setForeground(new Color(255, 100, 255));
+
+        scorePanel.add(yourScoreLabel);
+        scorePanel.add(opponentScoreLabel);
+
+        header.add(infoLabel, BorderLayout.CENTER);
+        header.add(countdownLabel, BorderLayout.EAST);
+        header.add(scorePanel, BorderLayout.SOUTH);
+        add(header, BorderLayout.NORTH);
+
+       // ==================== COLOR GRID - DYNAMIC SIZE ====================
+JPanel colorWrapper = new JPanel(new GridBagLayout());
+colorWrapper.setOpaque(false);
+GridBagConstraints gbc = new GridBagConstraints();
+gbc.insets = new Insets(20, 20, 20, 20);
+gbc.fill = GridBagConstraints.BOTH;
+gbc.weightx = 1.0;
+gbc.weighty = 1.0;
+
+int numColors = colors.size();
+int cols;
+if (numColors <= 3) cols = 3;
+else if (numColors <= 6) cols = 3;  // Vẫn 3 cột cho 6 màu
+else cols = 4;  // 4 cột cho 9 màu
+
+int rows = (int) Math.ceil((double) numColors / cols);
+JPanel colorPanel = new JPanel(new GridLayout(rows, cols, 15, 15));
+colorPanel.setOpaque(false);
+
+// Tính kích thước ô động theo số màu
+int btnSize;
+if (numColors <= 4) btnSize = 160;
+else if (numColors <= 6) btnSize = 140;
+else btnSize = 120;  // Nhỏ hơn tí cho 9 màu nhưng vẫn đẹp
+
+JToggleButton[] buttons = new JToggleButton[numColors];
+ButtonGroup group = new ButtonGroup();
+
+for (int i = 0; i < numColors; i++) {
+    Map<String, Integer> c = colors.get(i);
+    Color color = new Color(c.get("r"), c.get("g"), c.get("b"));
+    String rgb = c.get("r") + "," + c.get("g") + "," + c.get("b");
+
+    JToggleButton btn = new JToggleButton();
+    btn.setBackground(color);
+    btn.setPreferredSize(new Dimension(btnSize, btnSize));
+    btn.setMinimumSize(new Dimension(btnSize, btnSize));
+    btn.setMaximumSize(new Dimension(btnSize, btnSize));
+    btn.setOpaque(true);
+    btn.setBorderPainted(false);
+    btn.putClientProperty("rgb", rgb);
+    btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+    // NEON GLOW HOVER
+    btn.addMouseListener(new MouseAdapter() {
+        @Override
+        public void mouseEntered(MouseEvent e) {
+            if (btn.isEnabled()) {
+                btn.setBorder(BorderFactory.createLineBorder(new Color(0, 255, 255), 8));
+            }
+        }
+        @Override
+        public void mouseExited(MouseEvent e) {
+            btn.setBorder(BorderFactory.createEmptyBorder());
+        }
+    });
+
+    btn.addActionListener(e -> {
+        for (JToggleButton b : buttons) b.setSelected(b == btn);
+    });
+
+    buttons[i] = btn;
+    group.add(btn);
+    colorPanel.add(btn);
+}
+
+colorWrapper.add(colorPanel, gbc);
+add(colorWrapper, BorderLayout.CENTER);
+
+        // ==================== CHAT PANEL ====================
+        JPanel chatPanel = new NeonCard(new Color(255, 80, 255), new Color(40, 0, 60));
+        chatPanel.setLayout(new BorderLayout());
+        chatPanel.setPreferredSize(new Dimension(340, 0));
+        chatPanel.setBorder(new EmptyBorder(20, 20, 20, 30));
+
+        JLabel chatTitle = new JLabel("MATCH CHAT");
+        chatTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        chatTitle.setForeground(Color.WHITE);
+        chatTitle.setBorder(new EmptyBorder(0, 0, 10, 0));
+        chatPanel.add(chatTitle, BorderLayout.NORTH);
+
+        inGameChatArea = new JTextArea();
+        inGameChatArea.setEditable(false);
+        inGameChatArea.setBackground(new Color(10, 0, 20));
+        inGameChatArea.setForeground(Color.CYAN);
+        inGameChatArea.setFont(new Font("Consolas", Font.PLAIN, 14));
+        inGameChatArea.setLineWrap(true);
+
+        JScrollPane scroll = new JScrollPane(inGameChatArea);
+        scroll.setBorder(BorderFactory.createLineBorder(new Color(0, 200, 255), 2));
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        chatPanel.add(scroll, BorderLayout.CENTER);
+
+        JPanel inputPanel = new JPanel(new BorderLayout(8, 0));
+        inputPanel.setOpaque(false);
+        inputPanel.setBorder(new EmptyBorder(10, 0, 0, 0));
+
+        chatInput = new JTextField();
+        chatInput.setBackground(new Color(12, 0, 25));
+        chatInput.setForeground(Color.WHITE);
+        chatInput.setCaretColor(Color.CYAN);
+        chatInput.setBorder(BorderFactory.createLineBorder(new Color(0, 200, 255), 2));
+
+        JButton sendBtn = new NeonButton("SEND", new Color(255, 0, 200), new Color(120, 0, 100));
+        sendBtn.setPreferredSize(new Dimension(100, 40));
+
+        inputPanel.add(chatInput, BorderLayout.CENTER);
+        inputPanel.add(sendBtn, BorderLayout.EAST);
+        chatPanel.add(inputPanel, BorderLayout.SOUTH);
+
+        ActionListener sendAction = e -> {
+            String msg = chatInput.getText().trim();
+            if (!msg.isEmpty()) {
+                try {
+                    Message m = new Message(Message.Type.IN_GAME_CHAT);
+                    m.data = Map.of("message", msg);
+                    client.send(m);
+                    appendChatMessage("Bạn", msg);
+                    chatInput.setText("");
+                } catch (Exception ex) { ex.printStackTrace(); }
+            }
+        };
+        sendBtn.addActionListener(sendAction);
+        chatInput.addActionListener(sendAction);
+
         add(chatPanel, BorderLayout.EAST);
 
-        JPanel buttonPanel = new JPanel();
-        JButton sendBtn = new JButton("Gửi");
-        JButton exitBtn = new JButton("Thoát");
-        buttonPanel.add(sendBtn);
-        buttonPanel.add(exitBtn);
-        add(buttonPanel, BorderLayout.SOUTH);
+        // ==================== BOTTOM BUTTONS ====================
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 20));
+        bottom.setOpaque(false);
 
-        // --- BƯỚC 2: TẠO CÁC NÚT VÀ THIẾT LẬP LOGIC GAME ---
-        JToggleButton[] buttons = createColorButtons(colors);
+        JButton submitBtn = new NeonButton("GỬI LỰA CHỌN", new Color(0, 255, 150), new Color(0, 120, 60));
+        submitBtn.setPreferredSize(new Dimension(220, 55));
+        submitBtn.setFont(new Font("Segoe UI", Font.BOLD, 18));
 
-        // --- BƯỚC 3: KHỞI ĐỘNG CÁC TIMER VÀ ACTIONLISTENER ---
-        gameLogicTimer = new Timer();
-        countdownTimer = new Timer();
+        JButton exitBtn = new NeonButton("THOÁT", new Color(255, 80, 80), new Color(140, 0, 0));
+        exitBtn.setPreferredSize(new Dimension(160, 55));
 
-        setupGameLogic(buttons, correctColor, colorPanel, (JLabel) topPanel.getComponent(0),
-                (JLabel) topPanel.getComponent(1));
+        bottom.add(submitBtn);
+        bottom.add(exitBtn);
+        add(bottom, BorderLayout.SOUTH);
 
-        sendBtn.addActionListener(e -> {
+        submitBtn.addActionListener(e -> {
             for (JToggleButton btn : buttons) {
                 if (btn.isSelected()) {
-                    String selectedColorValue = (String) btn.getClientProperty("colorValue");
-                    sendMoveAndClose(selectedColorValue);
-                    break;
+                    String rgb = (String) btn.getClientProperty("rgb");
+                    sendMoveAndClose(rgb);
+                    return;
                 }
             }
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn một màu!", "Chưa chọn", JOptionPane.WARNING_MESSAGE);
         });
 
         exitBtn.addActionListener(e -> {
-            try {
-                client.send(new Message(Message.Type.EXIT));
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+            try { client.send(new Message(Message.Type.EXIT)); } catch (Exception ex) { ex.printStackTrace(); }
             closeTimers();
             dispose();
         });
 
-        // --- BƯỚC 4: HIỂN THỊ CỬA SỔ ---
-        setSize(650, 450);
-        setLocationRelativeTo(owner);
-        // setVisible(true) sẽ được gọi từ ClientController
+        // ==================== GAME LOGIC ====================
+        gameLogicTimer = new Timer();
+        countdownTimer = new Timer();
+        setupNeonGameLogic(buttons, correctColor, colorPanel);
     }
 
-    // --- CÁC PHƯƠNG THỨC ĐỂ CONTROLLER CÓ THỂ CẬP NHẬT TỪ BÊN NGOÀI ---
+    private void setupNeonGameLogic(JToggleButton[] buttons, Map<String, Integer> correctColor, JPanel colorPanel) {
+        int correctR = correctColor.get("r"), correctG = correctColor.get("g"), correctB = correctColor.get("b");
+        String correctRGB = correctR + "," + correctG + "," + correctB;
 
-    public void updateScores(double yourNewScore, double opponentNewScore) {
-        yourScoreLabel.setText(String.format("You: %.0f", yourNewScore));
-        opponentScoreLabel.setText(String.format("%s: %.0f", opponentName, opponentNewScore));
-    }
-
-    public void appendChatMessage(String sender, String message) {
-        inGameChatArea.append(String.format("[%s]: %s\n", sender, message));
-        inGameChatArea.setCaretPosition(inGameChatArea.getDocument().getLength());
-    }
-
-    // --- CÁC PHƯƠNG THỨC HELPER ĐỂ CODE GỌN HƠN ---
-
-    private JPanel createTopPanel(double yourScore, double opponentScore) {
-        JPanel topPanel = new JPanel(new BorderLayout());
-        JLabel infoLbl = new JLabel("Chọn màu đúng trong 15 giây!", SwingConstants.CENTER);
-        infoLbl.setFont(new Font("Arial", Font.BOLD, 16));
-        topPanel.add(infoLbl, BorderLayout.CENTER);
-
-        JLabel countdownLbl = new JLabel("15", SwingConstants.CENTER);
-        countdownLbl.setFont(new Font("Arial", Font.BOLD, 18));
-        topPanel.add(countdownLbl, BorderLayout.EAST);
-
-        JPanel scorePanel = new JPanel(new GridLayout(1, 2, 20, 0));
-        scorePanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        yourScoreLabel = new JLabel(String.format("You: %.0f", yourScore), SwingConstants.LEFT);
-        opponentScoreLabel = new JLabel(String.format("%s: %.0f", opponentName, opponentScore), SwingConstants.RIGHT);
-        yourScoreLabel.setFont(new Font("Arial", Font.BOLD, 14));
-        opponentScoreLabel.setFont(new Font("Arial", Font.BOLD, 14));
-        scorePanel.add(yourScoreLabel);
-        scorePanel.add(opponentScoreLabel);
-        topPanel.add(scorePanel, BorderLayout.SOUTH);
-
-        return topPanel;
-    }
-
-    private JPanel createColorPanel(List<Map<String, Integer>> colors) {
-        int numColors = colors.size();
-        int columns = 3;
-        int rows = (int) Math.ceil((double) numColors / columns);
-        return new JPanel(new GridLayout(rows, columns, 10, 10));
-    }
-
-    private JPanel createChatPanel() {
-        JPanel chatPanel = new JPanel(new BorderLayout(5, 5));
-        chatPanel.setPreferredSize(new Dimension(200, 0));
-        chatPanel.setBorder(BorderFactory.createTitledBorder("Match Chat"));
-
-        inGameChatArea = new JTextArea();
-        inGameChatArea.setEditable(false);
-        inGameChatArea.setLineWrap(true);
-        chatPanel.add(new JScrollPane(inGameChatArea), BorderLayout.CENTER);
-
-        JPanel messageInputPanel = new JPanel(new BorderLayout(5, 5));
-        JTextField inGameMessageField = new JTextField();
-        JButton sendInGameChatButton = new JButton("Send");
-        messageInputPanel.add(inGameMessageField, BorderLayout.CENTER);
-        messageInputPanel.add(sendInGameChatButton, BorderLayout.EAST);
-        chatPanel.add(messageInputPanel, BorderLayout.SOUTH);
-
-        ActionListener sendAction = e -> {
-            String message = inGameMessageField.getText().trim();
-            if (!message.isEmpty()) {
-                try {
-                    Message msg = new Message(Message.Type.IN_GAME_CHAT);
-                    msg.data = Map.of("message", message);
-                    client.send(msg);
-                    inGameMessageField.setText("");
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-            }
-        };
-        sendInGameChatButton.addActionListener(sendAction);
-        inGameMessageField.addActionListener(sendAction);
-        return chatPanel;
-    }
-
-    private JToggleButton[] createColorButtons(List<Map<String, Integer>> colors) {
-        JToggleButton[] buttons = new JToggleButton[colors.size()];
-        for (int i = 0; i < colors.size(); i++) {
-            Map<String, Integer> colorMap = colors.get(i);
-            int r = colorMap.get("r");
-            int g = colorMap.get("g");
-            int b = colorMap.get("b");
-            JToggleButton btn = new JToggleButton("");
-            btn.setBackground(new Color(r, g, b));
-            String colorValue = String.format("%d,%d,%d", r, g, b);
-            btn.putClientProperty("colorValue", colorValue);
-            buttons[i] = btn;
-        }
-        return buttons;
-    }
-
-    private void setupGameLogic(JToggleButton[] buttons, Map<String, Integer> correctColor, JPanel colorPanel,
-            JLabel infoLbl, JLabel countdownLbl) {
-        // Step 1: Hiển thị màu đúng
+        // 1. Hiện màu đúng
         gameLogicTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
+            @Override public void run() {
                 SwingUtilities.invokeLater(() -> {
-                    int correctR = correctColor.get("r");
-                    int correctG = correctColor.get("g");
-                    int correctB = correctColor.get("b");
-                    Color correctColorObj = new Color(correctR, correctG, correctB);
-                    String correctValue = String.format("%d,%d,%d", correctR, correctG, correctB);
-
-                    for (JToggleButton btn : buttons) {
-                        String btnValue = (String) btn.getClientProperty("colorValue");
-                        if (btnValue.equals(correctValue)) {
-                            btn.setBackground(correctColorObj);
-                        } else {
-                            btn.setBackground(Color.GRAY);
-                        }
-                        colorPanel.add(btn);
+                    for (JToggleButton b : buttons) {
+                        String rgb = (String) b.getClientProperty("rgb");
+                        b.setBackground(rgb.equals(correctRGB) ? new Color(correctR, correctG, correctB) : Color.GRAY.darker());
                     }
-                    colorPanel.revalidate();
-                    colorPanel.repaint();
-                    infoLbl.setText("Nhìn kỹ màu đúng!");
+                    infoLabel.setText("NHÌN KỸ MÀU ĐÚNG!");
+                    infoLabel.setForeground(new Color(255, 255, 0));
                 });
             }
         }, 1000);
 
-        // Step 2: Đen
+        // 2. Đen màn hình
         gameLogicTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
+            @Override public void run() {
                 SwingUtilities.invokeLater(() -> {
-                    for (JToggleButton btn : buttons) {
-                        btn.setBackground(Color.BLACK);
-                    }
-                    infoLbl.setText("Đang xáo vị trí...");
+                    for (JToggleButton b : buttons) b.setBackground(new Color(8, 0, 20));
+                    infoLabel.setText("ĐANG XÁO TRỘN...");
+                    infoLabel.setForeground(Color.MAGENTA);
                 });
             }
         }, 3000);
 
-        // Step 3: Xáo trộn và cho chọn
+        // 3. Xáo + cho chọn
         gameLogicTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
+            @Override public void run() {
                 SwingUtilities.invokeLater(() -> {
-                    java.util.List<JToggleButton> btnList = new java.util.ArrayList<>(java.util.List.of(buttons));
-                    java.util.Collections.shuffle(btnList);
+                    List<JToggleButton> list = new ArrayList<>(Arrays.asList(buttons));
+                    Collections.shuffle(list);
                     colorPanel.removeAll();
-                    for (JToggleButton btn : btnList) {
-                        String rgbString = (String) btn.getClientProperty("colorValue");
-                        String[] rgbParts = rgbString.split(",");
-                        int r = Integer.parseInt(rgbParts[0]);
-                        int g = Integer.parseInt(rgbParts[1]);
-                        int b = Integer.parseInt(rgbParts[2]);
-                        btn.setBackground(new Color(r, g, b));
-                        btn.addActionListener(e -> {
-                            for (JToggleButton otherBtn : buttons) {
-                                otherBtn.setSelected(otherBtn == btn);
-                            }
-                        });
-                        colorPanel.add(btn);
+                    for (JToggleButton b : list) {
+                        String[] p = ((String)b.getClientProperty("rgb")).split(",");
+                        b.setBackground(new Color(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2])));
+                        colorPanel.add(b);
                     }
                     colorPanel.revalidate();
                     colorPanel.repaint();
-                    infoLbl.setText("Chọn màu đúng!");
+                    infoLabel.setText("CHỌN NGAY!");
+                    infoLabel.setForeground(new Color(0, 255, 255));
                 });
             }
         }, 5000);
 
-        // Countdown
-        int[] secondsLeft = { 15 };
+        // Countdown 15s
+        int[] time = {15};
         countdownTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
+            @Override public void run() {
                 SwingUtilities.invokeLater(() -> {
-                    secondsLeft[0]--;
-                    countdownLbl.setText(String.valueOf(secondsLeft[0]));
-                    if (secondsLeft[0] <= 0) {
+                    time[0]--;
+                    countdownLabel.setText(String.valueOf(time[0]));
+                    if (time[0] <= 5) {
+                        countdownLabel.setForeground(time[0] % 2 == 0 ? Color.RED : new Color(255, 0, 255));
+                    }
+                    if (time[0] <= 0) {
                         countdownTimer.cancel();
-                        // tự động gửi move nếu chưa chọn
                         JToggleButton selected = null;
-                        for (JToggleButton b : buttons)
-                            if (b.isSelected())
-                                selected = b;
-                        if (selected == null)
-                            selected = buttons[new Random().nextInt(buttons.length)];
-                        try {
-                            Message msg = new Message(Message.Type.MOVE);
-                            String selectedColor = (String) selected.getClientProperty("colorValue");
-                            msg.data = Map.of("move", selectedColor); // ✅ Sửa ở đây);
-                            client.send(msg);
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
-                        }
+                        for (JToggleButton b : buttons) if (b.isSelected()) selected = b;
+                        if (selected == null) selected = buttons[new Random().nextInt(buttons.length)];
+                        String rgb = (String) selected.getClientProperty("rgb");
+                        sendMoveAndClose(rgb);
                     }
                 });
             }
         }, 6000, 1000);
     }
 
-    private void sendMoveAndClose(String colorValue) {
+    public void updateScores(double yourNewScore, double opponentNewScore) {
+        yourScoreLabel.setText("YOU: " + String.format("%.0f", yourNewScore));
+        opponentScoreLabel.setText(opponentName.toUpperCase() + ": " + String.format("%.0f", opponentNewScore));
+    }
+
+    public void appendChatMessage(String sender, String message) {
+        SwingUtilities.invokeLater(() -> {
+            inGameChatArea.append("[" + sender + "]: " + message + "\n");
+            inGameChatArea.setCaretPosition(inGameChatArea.getDocument().getLength());
+
+            // Nhấp nháy khi có tin nhắn mới
+            if (!sender.equals("Bạn")) {
+                Timer flash = new Timer();
+                final int[] count = {0};
+                flash.scheduleAtFixedRate(new TimerTask() {
+                    @Override public void run() {
+                        if (count[0] >= 8) {
+                            inGameChatArea.setForeground(Color.CYAN);
+                            flash.cancel();
+                            return;
+                        }
+                        inGameChatArea.setForeground(count[0]++ % 2 == 0 ? Color.MAGENTA : Color.CYAN);
+                    }
+                }, 0, 200);
+            }
+        });
+    }
+
+    private void sendMoveAndClose(String rgb) {
         try {
             Message msg = new Message(Message.Type.MOVE);
-            msg.data = Map.of("move", colorValue);
+            msg.data = Map.of("move", rgb);
             client.send(msg);
             closeTimers();
             dispose();
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
+        } catch (Exception ex) { ex.printStackTrace(); }
     }
 
     private void closeTimers() {
-        if (gameLogicTimer != null)
-            gameLogicTimer.cancel();
-        if (countdownTimer != null)
-            countdownTimer.cancel();
+        if (gameLogicTimer != null) gameLogicTimer.cancel();
+        if (countdownTimer != null) countdownTimer.cancel();
+    }
+
+    // ==================== NEON COMPONENTS (giống LobbyView) ====================
+    private static class BackgroundPanel extends JPanel {
+        private final BufferedImage stars = createStarField(1200, 800, 200);
+        BackgroundPanel() { setOpaque(true); }
+        @Override protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            GradientPaint gp = new GradientPaint(0, 0, new Color(8, 0, 20), 0, getHeight(), new Color(25, 0, 50));
+            g2.setPaint(gp);
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            if (stars != null) g2.drawImage(stars, 0, 0, null);
+            g2.dispose();
+        }
+        private static BufferedImage createStarField(int w, int h, int count) {
+            BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = img.createGraphics();
+            Random r = new Random();
+            for (int i = 0; i < count; i++) {
+                int x = r.nextInt(w), y = r.nextInt(h);
+                int a = r.nextInt(150) + 100;
+                g.setColor(new Color(255, 255, 255, a));
+                g.fillOval(x, y, 2, 2);
+            }
+            g.dispose();
+            return img;
+        }
+    }
+
+    private static class NeonCard extends JPanel {
+        private final Color glow, inner;
+        NeonCard(Color glow, Color inner) {
+            this.glow = glow; this.inner = inner;
+            setOpaque(false);
+        }
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth(), h = getHeight(), arc = 20;
+            for (int i = 16; i >= 4; i -= 4) {
+                float a = 0.1f * (i / 16f);
+                g2.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), (int)(a*255)));
+                g2.fillRoundRect(-i/2, -i/2, w+i, h+i, arc+i, arc+i);
+            }
+            GradientPaint gp = new GradientPaint(0, 0, inner.brighter(), 0, h, inner.darker());
+            g2.setPaint(gp);
+            g2.fillRoundRect(0, 0, w, h, arc, arc);
+            g2.setColor(glow);
+            g2.setStroke(new BasicStroke(3));
+            g2.drawRoundRect(2, 2, w-5, h-5, arc, arc);
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    private static class NeonButton extends JButton {
+        private final Color glow, base;
+        NeonButton(String text, Color glow, Color base) {
+            super(text);
+            this.glow = glow; this.base = base;
+            setContentAreaFilled(false);
+            setFocusPainted(false);
+            setForeground(Color.WHITE);
+            setFont(new Font("Segoe UI", Font.BOLD, 16));
+            setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        }
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth(), h = getHeight(), arc = 20;
+            for (int i = 10; i >= 2; i -= 2) {
+                g2.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 30 + i*15));
+                g2.fillRoundRect(-i/2, -i/2, w+i, h+i, arc+i, arc+i);
+            }
+            GradientPaint gp = new GradientPaint(0, 0, base.brighter(), 0, h, base.darker());
+            g2.setPaint(gp);
+            g2.fillRoundRect(0, 0, w, h, arc, arc);
+            g2.setColor(new Color(255,255,255,80));
+            g2.fillRoundRect(0, 0, w, h/2, arc, arc);
+            g2.setColor(glow);
+            g2.setStroke(new BasicStroke(3));
+            g2.drawRoundRect(2, 2, w-5, h-5, arc, arc);
+            g2.dispose();
+            super.paintComponent(g);
+        }
     }
 }
